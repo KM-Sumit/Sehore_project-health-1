@@ -1,0 +1,35 @@
+{
+	"compilerOptions": {
+		"target": "ESNext",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"lib": ["DOM", "DOM.Iterable", "ESNext"],
+		"allowJs": true,
+		"checkJs": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"sourceMap": true,
+		"strict": true,
+		"isolatedModules": true,
+		"paths": {
+			"$components/*": ["./src/lib/components/*"],
+			"$components": ["./src/lib/components"],
+			"$server/*": ["./src/lib/server/*"],
+			"$server": ["./src/lib/server"],
+			"$schemas/*": ["./src/lib/schemas/*"],
+			"$schemas": ["./src/lib/schemas"],
+			"$utils/*": ["./src/lib/utils/*"],
+			"$utils": ["./src/lib/utils"],
+			"$lib/*": ["./src/lib/*"],
+			"$lib": ["./src/lib"]
+		}
+	},
+	"include": [
+		"src/**/*.d.ts",
+		"src/**/*.ts",
+		"src/**/*.js",
+		"src/**/*.svelte"
+	]
+}
