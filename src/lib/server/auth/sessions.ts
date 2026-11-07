@@ -271,6 +271,6 @@ export async function revokeAllSessions(userId: string): Promise<void> {
  * Clear session cookies.
  */
 export function clearSessionCookies(cookies: { delete: (name: string, opts?: Record<string, unknown>) => void }): void {
-	cookies.delete('session', { path: '/' });
-	cookies.delete('refresh_token', { path: '/' });
+	cookies.delete('session', { path: '/', secure: isProduction, sameSite: 'strict' });
+	cookies.delete('refresh_token', { path: '/', secure: isProduction, sameSite: 'strict' });
 }
