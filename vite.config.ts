@@ -1,10 +1,13 @@
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import adapter from '@sveltejs/adapter-node';
+import adapterNode from '@sveltejs/adapter-node';
+import adapterVercel from '@sveltejs/adapter-vercel';
 import { compile, Features, optimize, toSourceMap } from '@tailwindcss/node';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig, type Plugin, type PluginOption, type ResolvedConfig } from 'vite';
+
+const isVercel = process.env.VERCEL === '1';
 
 const require = createRequire(import.meta.url);
 const SPECIAL_QUERY_RE = /[?&](?:worker|sharedworker|raw|url)\b/;
@@ -178,11 +181,15 @@ export default defineConfig(async () => ({
 	plugins: [
 		await loadTailwindPlugin(),
 		sveltekit({
-			adapter: adapter({
-				out: 'build',
-				precompress: false,
-				environment: 'node'
-			}),
+			adapter: isVercel
+				? adapterVercel({
+						runtime: 'nodejs22.x'
+					})
+				: adapterNode({
+						out: 'build',
+						precompress: false,
+						environment: 'node'
+					}),
 			alias: {
 				$lib: 'src/lib'
 			}
