@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Search, Filter, Stethoscope, Clock, IndianRupee, Calendar, QrCode } from 'lucide-svelte';
+	import { Search, Filter, Stethoscope, Clock, IndianRupee, Calendar, QrCode, ShieldCheck, Tag } from 'lucide-svelte';
 	import Card from '$components/Card.svelte';
 	import Button from '$components/Button.svelte';
 
@@ -33,6 +33,37 @@
 			Consult top medical specialists with verified clinical diagnostic support
 		</p>
 	</div>
+
+	<!-- Guest Booking & Returning Member Discount Banner -->
+	{#if data.memberStatus?.isReturningMember}
+		<div class="mb-6 bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 flex items-center gap-3 text-xs text-emerald-900">
+			<div class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+				<Tag class="w-4 h-4" />
+			</div>
+			<div>
+				<p class="font-bold">
+					{data.memberStatus.discountPercent}% Repeat-Booking Member Discount Active!
+				</p>
+				<p class="text-[11px] text-emerald-800">
+					Welcome back — discounted consultation fees are automatically applied below.
+				</p>
+			</div>
+		</div>
+	{:else}
+		<div class="mb-6 bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-emerald-900">
+			<div class="flex items-center gap-2.5">
+				<ShieldCheck class="w-4 h-4 text-emerald-600 shrink-0" />
+				<span>
+					<strong>Book Directly Without Signing Up:</strong> Pay &amp; confirm instantly. Creating an account is optional for saving history &amp; getting <strong>15% off</strong> your 2nd visit.
+				</span>
+			</div>
+			{#if !data.user}
+				<a href="/login?redirectTo=/book-appointment" class="text-[11px] font-semibold underline text-emerald-800 hover:text-emerald-950 shrink-0">
+					Returning patient? Sign in
+				</a>
+			{/if}
+		</div>
+	{/if}
 
 	<!-- Referral Attribution Banner if patient scanned general QR -->
 	{#if data.referralCode}
@@ -111,8 +142,13 @@
 							<Clock class="w-3.5 h-3.5 text-slate-400" />
 							{doctor.experienceYears} yrs experience
 						</span>
-						<span class="font-bold text-slate-900 text-xs">
-							₹{doctor.consultationFee}
+						<span class="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+							{#if doctor.discountPercent > 0}
+								<span class="line-through text-slate-400 font-normal">₹{doctor.consultationFee}</span>
+								<span class="text-emerald-700">₹{doctor.discountedFee}</span>
+							{:else}
+								₹{doctor.consultationFee}
+							{/if}
 						</span>
 					</div>
 

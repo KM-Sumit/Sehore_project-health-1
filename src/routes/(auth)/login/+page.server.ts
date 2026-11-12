@@ -6,11 +6,18 @@ import { users } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { verifyPassword } from '$lib/server/auth';
 import { createSession } from '$lib/server/auth/sessions';
+import { authFallbackStore } from '$lib/server/auth/fallbackStore';
+
+function safeRedirectTarget(raw: string | null): string {
+	if (!raw || !raw.startsWith('/') || raw.startsWith('//')) {
+		return '/dashboard';
+	}
+	return raw;
+}
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	if (locals.user) {
-		const redirectTo = url.searchParams.get('redirectTo') || '/dashboard';
-		throw redirect(303, redirectTo);
+		throw redirect(303, safeRedirectTarget(url.searchParams.get('redirectTo')));
 	}
 	return {};
 };
@@ -30,9 +37,18 @@ export const actions: Actions = {
 			});
 		}
 
-		const user = await db.query.users.findFirst({
-			where: eq(users.email, email)
-		});
+		let user: { id: string; name: string; email: string; role: string; passwordHash: string | null } | null = null;
+		try {
+			const dbUser = await db.query.users.findFirst({
+				where: eq(users.email, email)
+			});
+			if (dbUser) {
+				user = dbUser;
+			}
+		} catch (dbErr) {
+			console.warn('Login DB query fallback to in-memory auth store:', dbErr);
+			user = await authFallbackStore.findUserByEmail(email);
+		}
 
 		if (!user || !user.passwordHash) {
 			return fail(400, {
@@ -55,8 +71,7 @@ export const actions: Actions = {
 			cookies
 		);
 
-		const redirectTo = url.searchParams.get('redirectTo') || '/dashboard';
-		throw redirect(303, redirectTo);
+		throw redirect(303, safeRedirectTarget(url.searchParams.get('redirectTo')));
 	}
 };
 

@@ -4,8 +4,9 @@ import { doctors, doctorSlots } from '$lib/server/db/schema';
 import { eq, and, gte } from 'drizzle-orm';
 import { MOCK_DOCTORS, getMockSlots } from '$lib/server/mockData';
 import { adminStore } from '$lib/server/adminStore';
+import { getUserBookingStatus } from '$lib/server/appointments';
 
-export const load: PageServerLoad = async ({ url }) => {
+export const load: PageServerLoad = async ({ url, locals }) => {
 	const today = new Date().toISOString().split('T')[0];
 	const referralCode = url.searchParams.get('ref') || url.searchParams.get('qr') || '';
 
@@ -37,13 +38,41 @@ export const load: PageServerLoad = async ({ url }) => {
 		}));
 	}
 
-	// Enrich with QR codes from adminStore
+	// Merge in admin-created doctors that only exist in memory (not in DB or mock list)
+	const existingIds = new Set(docList.map((d: any) => d.id));
+	const adminDoctors = adminStore.getAllDoctors();
+	for (const adminDoc of adminDoctors) {
+		if (!existingIds.has(adminDoc.id)) {
+			docList.push({
+				id: adminDoc.id,
+				name: adminDoc.name,
+				specialty: adminDoc.specialty,
+				qualification: adminDoc.qualification,
+				experienceYears: adminDoc.experienceYears,
+				consultationFee: adminDoc.consultationFee,
+				bio: `${adminDoc.specialty} doctor`,
+				imageUrl: null,
+				isActive: true,
+				slots: getMockSlots(adminDoc.id)
+			});
+		}
+	}
+
+	const memberStatus = await getUserBookingStatus(locals.user ?? null);
+
+	// Enrich with QR codes, available slots, and repeat-booking pricing
 	const enrichedDoctors = docList.map((d) => {
 		const storeDoc = adminStore.getDoctorById(d.id);
+		const baseFee = parseFloat(d.consultationFee || storeDoc?.consultationFee || '500');
+		const pricing = adminStore.calculateAppointmentPricing(baseFee, memberStatus.isReturningMember);
+
 		return {
 			...d,
+			slots: (d.slots || []).filter((s: any) => !s.isBooked && !adminStore.isSlotBooked(s.id)),
 			qrCode: storeDoc?.qrCode || `DOC-QR-${d.name.slice(3, 8).toUpperCase()}-101`,
-			commissionRate: storeDoc?.commissionRate || 15
+			commissionRate: storeDoc?.commissionRate || 15,
+			discountedFee: pricing.finalFee,
+			discountPercent: pricing.discountPercent
 		};
 	});
 
@@ -53,6 +82,7 @@ export const load: PageServerLoad = async ({ url }) => {
 	return {
 		doctors: enrichedDoctors,
 		referralCode,
-		matchedDoctor
+		matchedDoctor,
+		memberStatus
 	};
 };

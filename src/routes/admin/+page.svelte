@@ -145,10 +145,10 @@
 						<span class="flex items-center gap-1.5 text-slate-700">
 							<Globe class="w-3.5 h-3.5" /> Direct Website Bookings
 						</span>
-						<span>{metrics.directAppointmentsCount} ({100 - metrics.qrSharePercentage}%)</span>
+						<span>{metrics.directAppointmentsCount} ({metrics.directSharePercentage ?? 0}%)</span>
 					</div>
 					<div class="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-						<div class="bg-slate-700 h-full rounded-full transition-all" style="width: {100 - metrics.qrSharePercentage}%"></div>
+						<div class="bg-slate-700 h-full rounded-full transition-all" style="width: {metrics.directSharePercentage ?? 0}%"></div>
 					</div>
 					<span class="text-[11px] text-slate-400 mt-0.5 block">Direct portal booking (no doctor commission)</span>
 				</div>
@@ -168,7 +168,7 @@
 			</div>
 
 			<div class="pt-4 border-t border-red-100/80 flex items-center justify-between">
-				<span class="text-xs text-slate-500 font-medium">6 Doctors Registered</span>
+				<span class="text-xs text-slate-500 font-medium">{doctors.length} Doctors Registered</span>
 				<Button variant="primary" size="sm" href="/admin/doctors">
 					Manage Doctor QRs
 					<ArrowRight class="w-3.5 h-3.5 ml-1" />
@@ -205,6 +205,13 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-slate-100 text-slate-700">
+					{#if recentAppointments.length === 0}
+						<tr>
+							<td colspan="8" class="p-8 text-center text-slate-400">
+								No appointments booked yet. Real patient bookings will appear here immediately.
+							</td>
+						</tr>
+					{/if}
 					{#each recentAppointments as appt}
 						<tr class="hover:bg-slate-50/60 transition-colors">
 							<!-- ID & Date -->

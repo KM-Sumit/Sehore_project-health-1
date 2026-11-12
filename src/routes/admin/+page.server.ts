@@ -4,6 +4,8 @@ import { db } from '$lib/server/db';
 import { users, doctors, appointments } from '$lib/server/db/schema';
 import { eq, count } from 'drizzle-orm';
 import { adminStore } from '$lib/server/adminStore';
+import { MOCK_TESTS } from '$lib/server/mockData';
+import { authFallbackStore } from '$lib/server/auth/fallbackStore';
 
 export const load: PageServerLoad = async ({ url }) => {
 	const host = url.host || 'localhost:5173';
@@ -11,21 +13,22 @@ export const load: PageServerLoad = async ({ url }) => {
 	const recentAppointments = adminStore.getAllAppointments().slice(0, 6);
 	const doctorsList = await adminStore.getAllDoctorsWithStats(host);
 
-	// ── Real DB counts (no hardcoded fallbacks) ──
-	let totalUsers = 0;
-	let activeTestsCount = 0;
+	let totalUsers = await authFallbackStore.getUserCount();
+	let activeTestsCount = MOCK_TESTS.filter((t) => t.isActive).length;
 	let totalAppointmentsDb = 0;
 
 	try {
 		const [userResult] = await db.select({ count: count() }).from(users);
-		totalUsers = Number(userResult?.count ?? 0);
+		totalUsers = Math.max(totalUsers, Number(userResult?.count ?? 0));
 	} catch (err) {
 		console.warn('Admin users count failed:', err);
 	}
 
 	try {
 		const [testResult] = await db.select({ count: count() }).from(doctors);
-		activeTestsCount = Number(testResult?.count ?? 0);
+		if (Number(testResult?.count ?? 0) > 0) {
+			activeTestsCount = Number(testResult.count);
+		}
 	} catch (err) {
 		console.warn('Admin doctors count failed:', err);
 	}
@@ -41,7 +44,7 @@ export const load: PageServerLoad = async ({ url }) => {
 		metrics: {
 			...metrics,
 			totalUsers,
-			totalAppointments: totalAppointmentsDb
+			totalAppointments: Math.max(metrics.totalAppointments, totalAppointmentsDb)
 		},
 		recentAppointments,
 		doctors: doctorsList,

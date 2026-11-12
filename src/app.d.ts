@@ -6,6 +6,7 @@ declare namespace App {
 			id: string;
 			name: string;
 			email: string;
+			phone?: string | null;
 			role: 'user' | 'admin' | 'doctor';
 		} | null;
 	}

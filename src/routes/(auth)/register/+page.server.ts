@@ -1,78 +1,52 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { registerSchema } from '$lib/schemas';
-import { db } from '$lib/server/db';
-import { users } from '$lib/server/db/schema';
-import { eq } from 'drizzle-orm';
-import { hashPassword } from '$lib/server/auth';
-import { createSession } from '$lib/server/auth/sessions';
+import { registerUserAccount } from '$lib/server/auth/accounts';
 
-export const load: PageServerLoad = async ({ locals }) => {
+function safeRedirectTarget(raw: string | null): string {
+	if (!raw || !raw.startsWith('/') || raw.startsWith('//')) {
+		return '/dashboard?tab=appointments';
+	}
+	return raw;
+}
+
+export const load: PageServerLoad = async ({ locals, url }) => {
 	if (locals.user) {
 		throw redirect(303, '/dashboard');
 	}
-	return {};
+	return {
+		prefill: {
+			name: url.searchParams.get('name') || '',
+			email: url.searchParams.get('email') || '',
+			phone: url.searchParams.get('phone') || '',
+			appointmentId: url.searchParams.get('appointmentId') || ''
+		}
+	};
 };
 
 export const actions: Actions = {
-	default: async ({ request, cookies }) => {
+	default: async ({ request, cookies, url }) => {
 		const formData = await request.formData();
 		const name = String(formData.get('name') || '').trim();
 		const email = String(formData.get('email') || '').trim().toLowerCase();
 		const phone = String(formData.get('phone') || '').trim();
 		const password = String(formData.get('password') || '');
 		const confirmPassword = String(formData.get('confirmPassword') || '');
+		const appointmentId = String(formData.get('appointmentId') || '').trim() || null;
 
-		const validation = registerSchema.safeParse({
-			name,
-			email,
-			phone,
-			password,
-			confirmPassword
-		});
-
-		if (!validation.success) {
-			const errors = validation.error.flatten().fieldErrors;
-			const firstError = Object.values(errors)[0]?.[0] || 'Invalid inputs';
-			return fail(400, {
-				name,
-				email,
-				phone,
-				error: firstError
-			});
-		}
-
-		const existingUser = await db.query.users.findFirst({
-			where: eq(users.email, email)
-		});
-
-		if (existingUser) {
-			return fail(400, {
-				name,
-				email,
-				phone,
-				error: 'An account with this email already exists'
-			});
-		}
-
-		const passwordHash = await hashPassword(password);
-		const [newUser] = await db
-			.insert(users)
-			.values({
-				name,
-				email,
-				phone,
-				passwordHash,
-				role: 'user'
-			})
-			.returning();
-
-		await createSession(
-			{ id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role },
-			{ request, url: new URL(request.url) },
-			cookies
+		const result = await registerUserAccount(
+			{ name, email, phone, password, confirmPassword, appointmentId },
+			{ request, cookies }
 		);
 
-		throw redirect(303, '/dashboard');
+		if (!result.ok) {
+			return fail(result.status, {
+				name,
+				email,
+				phone,
+				error: result.error
+			});
+		}
+
+		throw redirect(303, safeRedirectTarget(url.searchParams.get('redirectTo')));
 	}
 };

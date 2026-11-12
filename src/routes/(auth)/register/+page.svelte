@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { Plus, ArrowRight } from 'lucide-svelte';
+	import { Plus, ArrowRight, Sparkles } from 'lucide-svelte';
 	import Button from '$components/Button.svelte';
 
-	let { form } = $props();
+	let { data, form } = $props();
 
 	let name = $state('');
 	let email = $state('');
@@ -12,9 +12,9 @@
 	let loading = $state(false);
 
 	$effect(() => {
-		if (form?.name) name = form.name;
-		if (form?.email) email = form.email;
-		if (form?.phone) phone = form.phone;
+		if (!name && (form?.name || data?.prefill?.name)) name = form?.name || data?.prefill?.name || '';
+		if (!email && (form?.email || data?.prefill?.email)) email = form?.email || data?.prefill?.email || '';
+		if (!phone && (form?.phone || data?.prefill?.phone)) phone = form?.phone || data?.prefill?.phone || '';
 	});
 </script>
 
@@ -28,15 +28,21 @@
 		</a>
 	</div>
 	<h2 class="mt-4 text-center text-xl font-bold tracking-tight text-slate-900">
-		Create a patient account
+		Create an optional patient account
 	</h2>
 	<p class="mt-1 text-center text-xs text-slate-500">
-		Sign up to book tests, doctors, and securely track laboratory reports
+		Booking without an account is always allowed—create one anytime to save your booking history &amp; unlock 15% off your 2nd appointment
 	</p>
 </div>
 
 <div class="mt-6 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
 	<div class="bg-white py-8 px-6 shadow-sm border border-slate-200 rounded-2xl sm:px-10">
+		<div class="mb-5 rounded-xl bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800 flex items-start gap-2">
+			<Sparkles class="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+			<span>
+				<strong>Member Perks:</strong> Access past appointments &amp; reports anytime, plus an automatic <strong>15% discount</strong> starting on your 2nd doctor booking.
+			</span>
+		</div>
 		{#if form?.error}
 			<div class="mb-5 rounded-lg bg-red-50 p-3 text-xs text-red-700 border border-red-200">
 				{form.error}
@@ -79,6 +85,9 @@
 		</div>
 
 		<form method="POST" class="space-y-4" onsubmit={() => (loading = true)}>
+			{#if data?.prefill?.appointmentId}
+				<input type="hidden" name="appointmentId" value={data.prefill.appointmentId} />
+			{/if}
 			<div>
 				<label for="name" class="block text-xs font-medium text-slate-700 mb-1">Full Name</label>
 				<input

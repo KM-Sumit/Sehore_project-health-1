@@ -128,7 +128,7 @@
 						<a
 							href="/admin"
 							class="text-slate-600 hover:text-red-600 transition-colors"
-							>Laboratory Staff Portal</a
+							>Admin Panel (/admin)</a
 						>
 					</li>
 				</ul>

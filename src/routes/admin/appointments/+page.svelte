@@ -228,7 +228,7 @@
 									text={appt.status.toUpperCase()}
 								/>
 								<span class="block text-[10px] mt-1 font-semibold {appt.paymentStatus === 'paid' ? 'text-emerald-700' : 'text-amber-700'}">
-									{appt.paymentStatus === 'paid' ? '✓ Paid (Demo)' : 'Pay at Clinic'}
+									{appt.paymentStatus === 'paid' ? `✓ Paid (${appt.paymentMethod || 'Online'})` : 'Pay at Clinic'}
 								</span>
 							</td>
 
@@ -392,7 +392,7 @@
 					<div>
 						<span class="text-slate-500 block text-[10px]">Payment Status</span>
 						<span class="font-bold text-xs {selectedAppointment.paymentStatus === 'paid' ? 'text-emerald-700' : 'text-amber-700'}">
-							{selectedAppointment.paymentStatus === 'paid' ? 'PAID (Demo)' : 'Pay at Clinic'}
+							{selectedAppointment.paymentStatus === 'paid' ? `PAID (${selectedAppointment.paymentMethod || 'Online'})` : 'Pay at Clinic'}
 						</span>
 						{#if selectedAppointment.paymentId}
 							<span class="font-mono text-[9px] text-slate-500 block truncate">{selectedAppointment.paymentId}</span>

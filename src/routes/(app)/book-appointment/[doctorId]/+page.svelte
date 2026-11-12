@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import {
 		Stethoscope,
 		Clock,
@@ -19,7 +21,10 @@
 		Printer,
 		Building2,
 		AlertCircle,
-		Sparkles
+		Sparkles,
+		Tag,
+		History,
+		Lock
 	} from 'lucide-svelte';
 	import Card from '$components/Card.svelte';
 	import Button from '$components/Button.svelte';
@@ -28,6 +33,7 @@
 
 	let { data, form } = $props();
 	let doctor = $derived(data.doctor);
+	let pricing = $derived(data.pricing);
 
 	let selectedDate = $state('');
 	let selectedSlotId = $state('');
@@ -54,13 +60,31 @@
 	let demoUpiId = $state('patient@okaxis');
 	let isProcessingPayment = $state(false);
 	let paymentProcessingStep = $state('');
-	let generatedTxnId = $state('');
 
-	// Hidden form ref for automated submission after payment
+	// Hidden form state for server-verified submission after payment
 	let formElement: HTMLFormElement | null = $state(null);
+	let hiddenPaymentMode = $state<'demo_online' | 'pay_at_clinic'>('demo_online');
 	let hiddenPaymentMethod = $state('UPI (Demo Instant)');
-	let hiddenPaymentStatus = $state('paid');
+	let hiddenPaymentOrderId = $state('');
 	let hiddenPaymentId = $state('');
+	let hiddenPaymentSignature = $state('');
+
+	// Optional post-booking account creation state
+	let showOptionalAccountForm = $state(true);
+	let optName = $state('');
+	let optEmail = $state('');
+	let optPhone = $state('');
+	let optPassword = $state('');
+	let optConfirmPassword = $state('');
+	let creatingAccount = $state(false);
+
+	$effect(() => {
+		if (form?.success && !form?.accountCreated) {
+			if (!optName) optName = form.accountName || form.patientName || '';
+			if (!optEmail) optEmail = form.accountEmail || form.patientEmail || '';
+			if (!optPhone) optPhone = form.accountPhone || form.patientPhone || '';
+		}
+	});
 
 	// Generate next 7 days
 	let dates = $derived.by(() => {
@@ -97,72 +121,107 @@
 	});
 
 	$effect(() => {
-		if (form?.success) {
-			addToast('Appointment booked and confirmed!', 'success');
+		if (form?.accountCreated) {
+			addToast('Account created! Booking history saved and 15% repeat-booking discount unlocked.', 'success');
+		} else if (form?.success) {
+			addToast(
+				form.paymentStatus === 'paid'
+					? 'Payment received & appointment confirmed!'
+					: 'Appointment booked!',
+				'success'
+			);
 		}
 		if (form?.error) {
 			addToast(form.error, 'error');
 		}
+		if (form?.accountError) {
+			addToast(form.accountError, 'error');
+		}
 	});
 
-	function handleFormSubmitClick(e: MouseEvent) {
-		// Validate basics before opening payment
+	function validateFormInputs(): boolean {
 		if (!selectedSlotId) {
-			e.preventDefault();
 			addToast('Please pick a consultation time slot.', 'error');
-			return;
+			return false;
 		}
 		if (!patientName || patientName.trim().length < 2) {
-			e.preventDefault();
 			addToast('Please provide the patient full name.', 'error');
-			return;
+			return false;
 		}
-		if (!patientPhone || patientPhone.trim().length < 10) {
-			e.preventDefault();
+		if (!patientPhone || patientPhone.replace(/\D/g, '').length < 10) {
 			addToast('Please provide a valid 10-digit mobile phone number.', 'error');
-			return;
+			return false;
 		}
 		if (!reason || reason.trim().length < 3) {
-			e.preventDefault();
 			addToast('Please enter the reason for your visit.', 'error');
+			return false;
+		}
+		return true;
+	}
+
+	function handleFormSubmit(e: SubmitEvent) {
+		if (!validateFormInputs()) {
+			e.preventDefault();
 			return;
 		}
 
 		if (selectedPaymentMode === 'demo_online') {
-			e.preventDefault();
-			// Open the demo payment gateway modal
-			generatedTxnId = `TXN-DEMO-${Date.now().toString().slice(-6)}`;
-			paymentModalOpen = true;
-		} else {
-			// Pay at clinic - directly submit
-			hiddenPaymentMethod = 'Pay at Clinic / Cash';
-			hiddenPaymentStatus = 'pay_at_clinic';
-			hiddenPaymentId = `TXN-CLINIC-${Date.now().toString().slice(-6)}`;
+			if (!hiddenPaymentSignature) {
+				e.preventDefault();
+				paymentModalOpen = true;
+			}
+			return;
 		}
+
+		hiddenPaymentMode = 'pay_at_clinic';
+		hiddenPaymentMethod = 'Pay at Clinic / Cash';
+		hiddenPaymentOrderId = '';
+		hiddenPaymentId = '';
+		hiddenPaymentSignature = '';
 	}
 
 	async function simulatePaymentSuccess() {
 		isProcessingPayment = true;
-		paymentProcessingStep = 'Connecting to simulated clinical payment gateway...';
+		paymentProcessingStep = 'Creating payment order...';
 
-		await new Promise((r) => setTimeout(r, 600));
-		paymentProcessingStep = 'Authorizing transaction with issuing bank...';
+		try {
+			const orderRes = await fetch('/api/payment/create-order', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					doctorId: doctor.id,
+					amount: pricing.finalFee
+				})
+			});
+			const orderData = await orderRes.json();
 
-		await new Promise((r) => setTimeout(r, 700));
-		paymentProcessingStep = 'Payment verified! Generating appointment reference...';
+			if (!orderRes.ok || !orderData.id || !orderData.paymentId || !orderData.paymentSignature) {
+				throw new Error(orderData.error || 'Could not initialize payment order');
+			}
 
-		await new Promise((r) => setTimeout(r, 500));
+			paymentProcessingStep = 'Authorizing transaction...';
+			await new Promise((r) => setTimeout(r, 500));
 
-		hiddenPaymentMethod = paymentTab === 'upi' ? `UPI Demo (${selectedUpiApp})` : 'Card Demo (Visa/Mastercard)';
-		hiddenPaymentStatus = 'paid';
-		hiddenPaymentId = generatedTxnId || `TXN-DEMO-${Date.now().toString().slice(-6)}`;
+			paymentProcessingStep = 'Payment verified! Confirming your appointment...';
+			await new Promise((r) => setTimeout(r, 400));
 
-		isProcessingPayment = false;
-		paymentModalOpen = false;
+			hiddenPaymentMode = 'demo_online';
+			hiddenPaymentMethod =
+				paymentTab === 'upi' ? `UPI Demo (${selectedUpiApp})` : 'Card Demo (Visa/Mastercard)';
+			hiddenPaymentOrderId = orderData.id;
+			hiddenPaymentId = orderData.paymentId;
+			hiddenPaymentSignature = orderData.paymentSignature;
 
-		// Submit the actual form
-		if (formElement) {
-			formElement.submit();
+			await tick();
+			isProcessingPayment = false;
+			paymentModalOpen = false;
+
+			if (formElement) {
+				formElement.submit();
+			}
+		} catch (err: any) {
+			isProcessingPayment = false;
+			addToast(err?.message || 'Payment failed. Please try again.', 'error');
 		}
 	}
 
@@ -192,11 +251,16 @@
 			</div>
 
 			<span class="inline-block px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold uppercase tracking-wider mb-1">
-				Appointment Confirmed & Scheduled
+				{form.paymentStatus === 'paid' ? 'Payment Verified & Confirmed' : 'Appointment Scheduled (Pay at Clinic)'}
 			</span>
-			<h2 class="text-xl sm:text-2xl font-extrabold text-slate-900">Consultation Booked Successfully!</h2>
+			<h2 class="text-xl sm:text-2xl font-extrabold text-slate-900">
+				{form.paymentStatus === 'paid' ? 'Consultation Confirmed & Paid!' : 'Consultation Booked!'}
+			</h2>
 			<p class="text-xs text-slate-500 mt-1">
-				No account login needed. An SMS notification has been sent to <span class="font-semibold text-slate-700">{form.patientPhone}</span>.
+				{data.user
+					? 'Saved to your account history.'
+					: 'Booked directly without creating an account.'}
+				Confirmation details sent for <span class="font-semibold text-slate-700">{form.patientPhone}</span>.
 			</p>
 
 			<!-- Summary receipt box -->
@@ -233,7 +297,7 @@
 					<span class="text-slate-500">Payment Status</span>
 					{#if form.paymentStatus === 'paid'}
 						<span class="font-bold text-emerald-700 flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded">
-							<ShieldCheck class="w-3.5 h-3.5" /> PAID (Demo Gateway)
+							<ShieldCheck class="w-3.5 h-3.5" /> PAID ({form.paymentMethod || 'Online'})
 						</span>
 					{:else}
 						<span class="font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded">
@@ -247,8 +311,18 @@
 						<span class="font-mono text-slate-700">{form.paymentId}</span>
 					</div>
 				{/if}
+				{#if (form.discountPercent ?? 0) > 0}
+					<div class="flex justify-between border-b border-slate-200 pb-2">
+						<span class="text-slate-500">Standard Consultation Fee</span>
+						<span class="line-through text-slate-400">₹{form.originalFee}</span>
+					</div>
+					<div class="flex justify-between border-b border-slate-200 pb-2 text-emerald-700 font-semibold">
+						<span>Repeat-Booking Member Discount ({form.discountPercent}%)</span>
+						<span>-₹{form.discountAmount}</span>
+					</div>
+				{/if}
 				<div class="flex justify-between pt-1">
-					<span class="text-slate-700 font-bold">Total Consultation Fee</span>
+					<span class="text-slate-700 font-bold">Total {form.paymentStatus === 'paid' ? 'Paid' : 'Payable'}</span>
 					<span class="font-extrabold text-slate-900 text-sm">₹{form.consultationFee}</span>
 				</div>
 			</div>
@@ -265,29 +339,219 @@
 				<Button variant="primary" size="sm" href="/book-appointment">
 					Book Another Consultation
 				</Button>
-				<Button variant="outline" size="sm" href="/">
-					Return to Home
-				</Button>
+				{#if data.user || form.accountCreated}
+					<Button variant="outline" size="sm" href="/dashboard?tab=appointments">
+						View My History
+					</Button>
+				{:else}
+					<Button variant="outline" size="sm" href="/">
+						Return to Home
+					</Button>
+				{/if}
 			</div>
 		</div>
+
+		<!-- Optional Account Creation Card (only for guests after booking) -->
+		{#if form.accountCreated}
+			<div class="max-w-xl mx-auto mt-6 bg-emerald-50 border border-emerald-200 rounded-2xl p-5 text-xs text-emerald-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+				<div class="flex items-start gap-3">
+					<div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+						<Tag class="w-4 h-4" />
+					</div>
+					<div>
+						<h3 class="font-bold text-sm text-emerald-900">Account Created &amp; Booking Linked!</h3>
+						<p class="text-emerald-800 mt-0.5">
+							Signed in as <span class="font-semibold">{form.createdUserEmail}</span>. Your history is saved and your <strong>15% Repeat-Booking Discount</strong> is now unlocked for your next appointment!
+						</p>
+					</div>
+				</div>
+				<Button variant="primary" size="sm" href="/dashboard?tab=appointments">
+					Open Dashboard
+				</Button>
+			</div>
+		{:else if !data.user && showOptionalAccountForm}
+			<div class="max-w-xl mx-auto mt-6 bg-white rounded-2xl border border-slate-200 shadow-xs p-6 text-xs">
+				<div class="flex items-start justify-between gap-3 mb-4">
+					<div class="flex items-start gap-3">
+						<div class="w-9 h-9 rounded-xl bg-red-50 text-red-600 flex items-center justify-center shrink-0 border border-red-100">
+							<History class="w-4 h-4" />
+						</div>
+						<div>
+							<span class="inline-block px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-semibold text-[10px] uppercase tracking-wide mb-1">
+								Optional • Not Required
+							</span>
+							<h3 class="text-sm font-bold text-slate-900">
+								Want to save booking history &amp; get 15% OFF your 2nd appointment?
+							</h3>
+							<p class="text-slate-500 mt-0.5">
+								Your appointment is already confirmed. Create a free account below if you'd like to track past visits and automatically receive 15% off on your next booking.
+							</p>
+						</div>
+					</div>
+					<button
+						type="button"
+						onclick={() => (showOptionalAccountForm = false)}
+						class="text-slate-400 hover:text-slate-600 text-[11px] font-medium shrink-0 cursor-pointer"
+					>
+						Skip
+					</button>
+				</div>
+
+				{#if form?.accountError}
+					<div class="mb-4 rounded-lg bg-red-50 p-3 text-xs text-red-700 border border-red-200 flex items-center gap-2">
+						<AlertCircle class="w-4 h-4 shrink-0" />
+						<span>{form.accountError}</span>
+					</div>
+				{/if}
+
+				<form
+					method="POST"
+					action="?/createAccount"
+					use:enhance={() => {
+						creatingAccount = true;
+						return async ({ update }) => {
+							creatingAccount = false;
+							await update();
+							await invalidateAll();
+						};
+					}}
+					class="space-y-3"
+				>
+					<input type="hidden" name="appointmentId" value={form.appointmentId} />
+					<input type="hidden" name="storeAppointmentId" value={form.storeAppointmentId || form.appointmentId} />
+
+					<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+						<div>
+							<label for="optName" class="block font-semibold text-slate-700 mb-1">Full Name</label>
+							<input
+								id="optName"
+								name="name"
+								type="text"
+								required
+								bind:value={optName}
+								class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-red-500"
+							/>
+						</div>
+						<div>
+							<label for="optPhone" class="block font-semibold text-slate-700 mb-1">Mobile Number</label>
+							<input
+								id="optPhone"
+								name="phone"
+								type="tel"
+								required
+								bind:value={optPhone}
+								class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-red-500"
+							/>
+						</div>
+					</div>
+
+					<div>
+						<label for="optEmail" class="block font-semibold text-slate-700 mb-1">Email Address</label>
+						<input
+							id="optEmail"
+							name="email"
+							type="email"
+							required
+							bind:value={optEmail}
+							placeholder="you@example.com"
+							class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-red-500"
+						/>
+					</div>
+
+					<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+						<div>
+							<label for="optPassword" class="block font-semibold text-slate-700 mb-1">Create Password</label>
+							<input
+								id="optPassword"
+								name="password"
+								type="password"
+								required
+								minlength="6"
+								bind:value={optPassword}
+								placeholder="Min. 6 characters"
+								class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-red-500"
+							/>
+						</div>
+						<div>
+							<label for="optConfirmPassword" class="block font-semibold text-slate-700 mb-1">Confirm Password</label>
+							<input
+								id="optConfirmPassword"
+								name="confirmPassword"
+								type="password"
+								required
+								minlength="6"
+								bind:value={optConfirmPassword}
+								placeholder="Re-enter password"
+								class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-1 focus:ring-red-500"
+							/>
+						</div>
+					</div>
+
+					<div class="pt-1 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+						<button
+							type="submit"
+							disabled={creatingAccount}
+							class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs inline-flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+						>
+							<Lock class="w-3.5 h-3.5" />
+							<span>{creatingAccount ? 'Creating Account...' : 'Create Optional Account & Save Booking'}</span>
+						</button>
+						<button
+							type="button"
+							onclick={() => (showOptionalAccountForm = false)}
+							class="text-slate-500 hover:text-slate-700 text-xs font-medium cursor-pointer"
+						>
+							No thanks, continue without account
+						</button>
+					</div>
+				</form>
+			</div>
+		{/if}
 	{:else}
 		<!-- Back link -->
 		<a href="/book-appointment" class="text-xs text-slate-500 hover:text-red-600 transition-colors mb-3 inline-flex items-center gap-1">
 			← Back to all doctors
 		</a>
 
-		<!-- Direct Booking Banner: No sign-in required -->
-		<div class="mb-4 bg-emerald-50/70 border border-emerald-200 rounded-xl p-3 flex items-center justify-between gap-3 text-xs">
-			<div class="flex items-center gap-2 text-emerald-800">
-				<ShieldCheck class="w-4 h-4 text-emerald-600 shrink-0" />
-				<span><strong>Instant Direct Booking:</strong> No account login required. Complete booking in 1 minute.</span>
+		<!-- Direct Booking / Member Discount Banner -->
+		{#if pricing.isReturningMember}
+			<div class="mb-4 bg-emerald-50 border border-emerald-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+				<div class="flex items-center gap-2 text-emerald-900">
+					<Tag class="w-4 h-4 text-emerald-600 shrink-0" />
+					<span>
+						<strong>{pricing.discountPercent}% Repeat-Booking Discount Applied!</strong>
+						You save <strong>₹{pricing.discountAmount}</strong> as a returning member ({pricing.previousBookingsCount} previous booking{pricing.previousBookingsCount > 1 ? 's' : ''}).
+					</span>
+				</div>
+				<span class="text-[11px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded font-semibold shrink-0">
+					{data.user?.name}
+				</span>
 			</div>
-			{#if data.user}
-				<span class="text-[11px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded font-medium shrink-0">
+		{:else if data.user}
+			<div class="mb-4 bg-sky-50 border border-sky-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+				<div class="flex items-center gap-2 text-sky-900">
+					<Sparkles class="w-4 h-4 text-sky-600 shrink-0" />
+					<span>
+						<strong>Account Active:</strong> This appointment will be saved to your history &amp; unlocks <strong>15% off</strong> on your 2nd appointment!
+					</span>
+				</div>
+				<span class="text-[11px] text-sky-800 bg-sky-100 px-2 py-0.5 rounded font-medium shrink-0">
 					Logged in as {data.user.name}
 				</span>
-			{/if}
-		</div>
+			</div>
+		{:else}
+			<div class="mb-4 bg-emerald-50/70 border border-emerald-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+				<div class="flex items-center gap-2 text-emerald-800">
+					<ShieldCheck class="w-4 h-4 text-emerald-600 shrink-0" />
+					<span>
+						<strong>Direct Booking (No Account Required):</strong> Complete payment to confirm right away. Optionally create an account later to save history &amp; get <strong>15% off</strong> your 2nd booking.
+					</span>
+				</div>
+				<a href="/login?redirectTo=/book-appointment/{doctor.id}" class="text-[11px] font-semibold text-emerald-800 underline hover:text-emerald-950 shrink-0">
+					Have an account? Sign in
+				</a>
+			</div>
+		{/if}
 
 		<!-- QR Referral Attribution Banner (if scanned via clinic QR standee) -->
 		{#if data.isQrReferral}
@@ -334,7 +598,15 @@
 						</span>
 						<span class="flex items-center gap-1 font-bold text-slate-900">
 							<IndianRupee class="w-3.5 h-3.5 text-slate-400" />
-							₹{doctor.consultationFee} fee
+							{#if pricing.discountPercent > 0}
+								<span class="line-through text-slate-400 font-normal">₹{pricing.originalFee}</span>
+								<span class="text-emerald-700">₹{pricing.finalFee}</span>
+								<span class="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-semibold">
+									{pricing.discountPercent}% OFF
+								</span>
+							{:else}
+								₹{doctor.consultationFee} fee
+							{/if}
 						</span>
 					</div>
 				</div>
@@ -401,7 +673,9 @@
 
 			<form
 				method="POST"
+				action="?/book"
 				bind:this={formElement}
+				onsubmit={handleFormSubmit}
 				class="space-y-4 text-xs"
 			>
 				<input type="hidden" name="doctorId" value={doctor.id} />
@@ -409,9 +683,11 @@
 				<input type="hidden" name="referralCode" value={data.referralCode} />
 				<input type="hidden" name="appointmentDate" value={selectedSlot?.date || ''} />
 				<input type="hidden" name="appointmentTime" value={selectedSlot ? `${selectedSlot.startTime.slice(0, 5)} - ${selectedSlot.endTime.slice(0, 5)}` : ''} />
+				<input type="hidden" name="paymentMode" value={hiddenPaymentMode} />
 				<input type="hidden" name="paymentMethod" value={hiddenPaymentMethod} />
-				<input type="hidden" name="paymentStatus" value={hiddenPaymentStatus} />
+				<input type="hidden" name="paymentOrderId" value={hiddenPaymentOrderId} />
 				<input type="hidden" name="paymentId" value={hiddenPaymentId} />
+				<input type="hidden" name="paymentSignature" value={hiddenPaymentSignature} />
 
 				<!-- Patient Name & Phone Inputs -->
 				<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -546,20 +822,29 @@
 							<span class="font-semibold text-slate-800">{selectedSlot.date} at {selectedSlot.startTime.slice(0, 5)}</span>
 						</div>
 					{/if}
+					{#if pricing.discountPercent > 0}
+						<div class="flex justify-between">
+							<span class="text-slate-500">Consultation Fee:</span>
+							<span class="text-slate-600 line-through">₹{pricing.originalFee}</span>
+						</div>
+						<div class="flex justify-between text-emerald-700 font-semibold">
+							<span>Repeat-Booking Discount ({pricing.discountPercent}%):</span>
+							<span>-₹{pricing.discountAmount}</span>
+						</div>
+					{/if}
 					<div class="flex justify-between pt-1 border-t border-slate-200 text-sm">
 						<span class="text-slate-800 font-bold">Total Payable:</span>
-						<span class="font-extrabold text-red-600">₹{doctor.consultationFee}</span>
+						<span class="font-extrabold text-red-600">₹{pricing.finalFee}</span>
 					</div>
 				</div>
 
 				<!-- Submit Button -->
 				<button
-					type="button"
-					onclick={handleFormSubmitClick}
+					type="submit"
 					class="w-full py-2.5 px-4 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs sm:text-sm shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer"
 				>
 					{#if selectedPaymentMode === 'demo_online'}
-						<span>Proceed to Demo Payment (₹{doctor.consultationFee})</span>
+						<span>Pay ₹{pricing.finalFee} &amp; Book Appointment</span>
 						<ChevronRight class="w-4 h-4" />
 					{:else}
 						<span>Confirm Appointment (Pay at Clinic)</span>
@@ -582,7 +867,7 @@
 			</div>
 			<div class="text-right">
 				<span class="text-[10px] text-slate-400 block">Payable</span>
-				<span class="text-lg font-extrabold text-emerald-400">₹{doctor.consultationFee}</span>
+				<span class="text-lg font-extrabold text-emerald-400">₹{pricing.finalFee}</span>
 			</div>
 		</div>
 
@@ -704,7 +989,7 @@
 					<span class="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
 					<span>{paymentProcessingStep}</span>
 				{:else}
-					<span>Pay ₹{doctor.consultationFee} (Demo Success)</span>
+					<span>Pay ₹{pricing.finalFee} (Demo Success)</span>
 					<ChevronRight class="w-4 h-4" />
 				{/if}
 			</button>

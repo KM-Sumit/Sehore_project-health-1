@@ -13,22 +13,28 @@ export const handle: Handle = async ({ event, resolve }) => {
 				id: session.user.id,
 				name: session.user.name,
 				email: session.user.email,
+				phone: session.user.phone ?? null,
 				role: session.user.role as 'user' | 'admin' | 'doctor'
 		  }
 		: null;
 
 	const { pathname } = event.url;
 
-	// Require authentication for protected routes
-	const isProtected = PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
-	if (isProtected && !event.locals.user) {
-		throw redirect(303, `/login?redirectTo=${encodeURIComponent(pathname)}`);
+	const isAdminLogin = pathname === '/admin/login';
+	const isAdmin = !isAdminLogin && ADMIN_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+
+	// Dedicated Admin Portal auth flow (separate from patient login; ready for future OAuth)
+	if (isAdmin) {
+		if (!event.locals.user || event.locals.user.role !== 'admin') {
+			throw redirect(303, `/admin/login?redirectTo=${encodeURIComponent(pathname)}`);
+		}
+		return resolve(event);
 	}
 
-	// Require admin role for admin routes
-	const isAdmin = ADMIN_PREFIXES.some((prefix) => pathname.startsWith(prefix));
-	if (isAdmin && event.locals.user?.role !== 'admin') {
-		throw redirect(303, '/dashboard');
+	// Require patient authentication for personal dashboard & profile routes
+	const isProtected = !isAdminLogin && PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+	if (isProtected && !event.locals.user) {
+		throw redirect(303, `/login?redirectTo=${encodeURIComponent(pathname)}`);
 	}
 
 	return resolve(event);

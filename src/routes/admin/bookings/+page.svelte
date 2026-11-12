@@ -41,6 +41,13 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-slate-100 text-slate-700">
+					{#if data.testBookings.length === 0}
+						<tr>
+							<td colspan="7" class="p-8 text-center text-slate-400">
+								No lab test orders placed yet. Blood &amp; diagnostic test bookings will appear here.
+							</td>
+						</tr>
+					{/if}
 					{#each data.testBookings as booking}
 						<tr>
 							<td class="p-3 font-mono font-medium text-slate-900">{booking.id}</td>

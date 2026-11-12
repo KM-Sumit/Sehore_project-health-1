@@ -72,14 +72,23 @@ describe('Doctor QR Referral & Admin Accounting', () => {
 	});
 
 	it('allows admin to update appointment status from pending to confirmed', () => {
-		const pendingList = adminStore.getAllAppointments({ status: 'pending' });
-		expect(pendingList.length).toBeGreaterThan(0);
+		const doc = adminStore.getAllDoctors()[0];
+		const created = adminStore.createAppointment({
+			patientName: 'Pending Clinic Patient',
+			patientPhone: '9876509999',
+			doctorId: doc.id,
+			slotId: `slot-${doc.id}-2026-11-11-3`,
+			appointmentDate: '2026-11-11',
+			appointmentTime: '02:00 PM',
+			reason: 'Pay at clinic follow-up checkup',
+			paymentStatus: 'pay_at_clinic'
+		});
+		expect(created.status).toBe('pending');
 
-		const target = pendingList[0];
-		const updated = adminStore.updateAppointmentStatus(target.id, 'confirmed');
+		const updated = adminStore.updateAppointmentStatus(created.id, 'confirmed');
 		expect(updated).toBe(true);
 
-		const refreshed = adminStore.getAppointmentById(target.id);
+		const refreshed = adminStore.getAppointmentById(created.id);
 		expect(refreshed?.status).toBe('confirmed');
 	});
 

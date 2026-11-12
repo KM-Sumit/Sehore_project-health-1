@@ -3,6 +3,7 @@ import { eq, and, isNull } from 'drizzle-orm';
 import { env } from '$env/dynamic/private';
 import { db } from '$lib/server/db';
 import { sessions, users } from '$lib/server/db/schema';
+import { authFallbackStore } from './fallbackStore';
 
 // ── Token hashing (Web Crypto, available in Bun) ──────────────────────────────
 
@@ -129,33 +130,53 @@ export async function createSession(
 
 	const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-	const [session] = await db
-		.insert(sessions)
-		.values({
-			userId: user.id,
-			accessTokenHash,
-			refreshTokenHash,
-			expiresAt,
-			ipAddress,
-			userAgent
-		})
-		.returning();
+	let sessionId: string = crypto.randomUUID();
+	try {
+		const [session] = await db
+			.insert(sessions)
+			.values({
+				userId: user.id,
+				accessTokenHash,
+				refreshTokenHash,
+				expiresAt,
+				ipAddress,
+				userAgent
+			})
+			.returning();
+		if (session?.id) {
+			sessionId = session.id;
+		}
+	} catch (err) {
+		console.warn('Session DB insert fallback to signed JWT cookies:', err);
+		authFallbackStore.addFallbackSessionHash(accessTokenHash);
+	}
 
 	cookies.set('session', accessToken, accessTokenCookieOptions());
 	cookies.set('refresh_token', refreshToken, refreshTokenCookieOptions());
 
-	return { ...session, accessToken, refreshToken, expiresAt: session.expiresAt };
+	return {
+		id: sessionId,
+		userId: user.id,
+		accessToken,
+		refreshToken,
+		accessTokenHash,
+		refreshTokenHash,
+		expiresAt
+	};
 }
 
 /**
- * Verify the incoming request's session cookie against the DB.
- * Returns the user + session if valid and not revoked/expired.
+ * Verify the incoming request's session cookie against the DB (with signed-JWT
+ * fallback when DB is unavailable). Returns null if unauthenticated or revoked.
  */
 export async function getSessionFromRequest(event: {
 	cookies: { get: (name: string) => string | undefined };
 	request: Request;
 	url: URL;
-}): Promise<{ user: { id: string; name: string; email: string; role: string }; session: typeof sessions.$inferSelect } | null> {
+}): Promise<{
+	user: { id: string; name: string; email: string; phone?: string | null; role: string };
+	session: typeof sessions.$inferSelect | null;
+} | null> {
 	const token = event.cookies.get('session');
 	if (!token) return null;
 
@@ -163,24 +184,63 @@ export async function getSessionFromRequest(event: {
 	if (!payload || payload.type !== 'access') return null;
 
 	const tokenHash = await hashToken(token);
+	if (authFallbackStore.isTokenRevoked(tokenHash)) return null;
 
-	const [session] = await db
-		.select()
-		.from(sessions)
-		.where(and(eq(sessions.accessTokenHash, tokenHash), isNull(sessions.revokedAt)));
-
-	if (!session) return null;
-
-	if (session.expiresAt < new Date()) return null;
-
-	// Attach user by joining
-	const [user] = await db.select().from(users).where(eq(users.id, session.userId));
-	if (!user) return null;
-
-	return {
-		user: { id: user.id, name: user.name, email: user.email, role: user.role },
-		session
+	const resolveFallbackUser = async () => {
+		const fallbackUser = await authFallbackStore.findUserById(payload.id);
+		if (fallbackUser) {
+			return {
+				user: {
+					id: fallbackUser.id,
+					name: fallbackUser.name,
+					email: fallbackUser.email,
+					phone: fallbackUser.phone,
+					role: fallbackUser.role
+				},
+				session: null
+			};
+		}
+		return {
+			user: {
+				id: payload.id,
+				name: payload.name,
+				email: payload.email,
+				phone: null,
+				role: payload.role
+			},
+			session: null
+		};
 	};
+
+	if (authFallbackStore.hasFallbackSessionHash(tokenHash)) {
+		return resolveFallbackUser();
+	}
+
+	try {
+		const [session] = await db
+			.select()
+			.from(sessions)
+			.where(and(eq(sessions.accessTokenHash, tokenHash), isNull(sessions.revokedAt)));
+
+		if (!session || session.expiresAt < new Date()) return null;
+
+		const [user] = await db.select().from(users).where(eq(users.id, session.userId));
+		if (!user) return null;
+
+		return {
+			user: {
+				id: user.id,
+				name: user.name,
+				email: user.email,
+				phone: user.phone,
+				role: user.role
+			},
+			session
+		};
+	} catch (err) {
+		console.warn('Session DB verification fallback:', err);
+		return resolveFallbackUser();
+	}
 }
 
 /**
@@ -257,7 +317,12 @@ export async function refreshSession(event: {
  */
 export async function revokeSession(accessToken: string): Promise<void> {
 	const tokenHash = await hashToken(accessToken);
-	await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.accessTokenHash, tokenHash));
+	authFallbackStore.revokeTokenHash(tokenHash);
+	try {
+		await db.update(sessions).set({ revokedAt: new Date() }).where(eq(sessions.accessTokenHash, tokenHash));
+	} catch (err) {
+		console.warn('DB revokeSession fallback:', err);
+	}
 }
 
 /**

@@ -13,8 +13,23 @@ export interface DoctorReferralProfile {
 	clinicName: string;
 }
 
+export const REPEAT_BOOKING_DISCOUNT_PERCENT = 15;
+
+function normalizePhone(phone?: string | null): string {
+	const digits = (phone || '').replace(/\D/g, '');
+	return digits.length > 10 ? digits.slice(-10) : digits;
+}
+
+export interface AppointmentPricing {
+	originalFee: number;
+	discountPercent: number;
+	discountAmount: number;
+	finalFee: number;
+}
+
 export interface AppointmentRecord {
 	id: string;
+	userId?: string | null;
 	patientName: string;
 	patientPhone: string;
 	patientEmail?: string;
@@ -28,6 +43,9 @@ export interface AppointmentRecord {
 	status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
 	bookingSource: 'direct' | 'doctor_qr';
 	referralQrCode: string | null;
+	originalFee?: number;
+	discountPercent?: number;
+	discountAmount?: number;
 	consultationFee: number;
 	commissionRate: number;
 	commissionAmount: number;
@@ -37,10 +55,35 @@ export interface AppointmentRecord {
 	createdAt: string;
 }
 
+export interface TestBookingRecord {
+	id: string;
+	userId?: string | null;
+	patientName: string;
+	patientPhone: string;
+	patientEmail?: string;
+	patientAge: number;
+	patientGender: string;
+	address: string;
+	collectionDate: string;
+	collectionSlot: string;
+	status: 'pending' | 'confirmed' | 'sample_collected' | 'processing' | 'completed' | 'cancelled';
+	totalAmount: number;
+	paymentStatus: 'paid' | 'pending';
+	paymentMethod?: string;
+	paymentId?: string;
+	items: Array<{
+		testId: string;
+		test: { id: string; name: string; price: string; category: string };
+	}>;
+	createdAt: string;
+}
+
 // In-memory persistent state (survives requests during server lifecycle)
 class AdminStore {
 	private doctors: Map<string, DoctorReferralProfile> = new Map();
 	private appointments: AppointmentRecord[] = [];
+	private testBookings: TestBookingRecord[] = [];
+	private bookedSlotIds: Set<string> = new Set();
 
 	constructor() {
 		this.initDoctors();
@@ -123,176 +166,7 @@ class AdminStore {
 	}
 
 	private initAppointments() {
-		this.appointments = [
-			{
-				id: 'APT-982101',
-				patientName: 'Sunil Kumar Verma',
-				patientPhone: '+91 98234 56789',
-				patientEmail: 'sunil.verma@example.com',
-				doctorId: '11111111-1111-1111-1111-111111111101',
-				doctorName: 'Dr. Rajesh Sharma',
-				doctorSpecialty: 'Cardiology',
-				appointmentDate: '2026-11-07',
-				appointmentTime: '10:00 AM',
-				slotId: 'slot-11111111-1111-1111-1111-111111111101-2026-11-07-1',
-				reason: 'Hypertension checkup and recent chest heaviness after exertion',
-				status: 'pending',
-				bookingSource: 'doctor_qr',
-				referralQrCode: 'DOC-QR-RAJESH-101',
-				consultationFee: 800,
-				commissionRate: 15.0,
-				commissionAmount: 120.0,
-				paymentStatus: 'paid',
-				createdAt: '2026-11-06T09:30:00.000Z'
-			},
-			{
-				id: 'APT-982102',
-				patientName: 'Pooja Tiwari',
-				patientPhone: '+91 98765 43211',
-				patientEmail: 'pooja.t@example.com',
-				doctorId: '11111111-1111-1111-1111-111111111102',
-				doctorName: 'Dr. Priya Patel',
-				doctorSpecialty: 'Dermatology',
-				appointmentDate: '2026-11-07',
-				appointmentTime: '11:00 AM',
-				slotId: 'slot-11111111-1111-1111-1111-111111111102-2026-11-07-2',
-				reason: 'Persistent skin rash and itching on arms since 2 weeks',
-				status: 'confirmed',
-				bookingSource: 'doctor_qr',
-				referralQrCode: 'DOC-QR-PRIYA-102',
-				consultationFee: 600,
-				commissionRate: 15.0,
-				commissionAmount: 90.0,
-				paymentStatus: 'paid',
-				createdAt: '2026-11-06T08:15:00.000Z'
-			},
-			{
-				id: 'APT-982103',
-				patientName: 'Mohan Lal Sharma',
-				patientPhone: '+91 94250 12345',
-				patientEmail: 'mohan.sharma@example.com',
-				doctorId: '11111111-1111-1111-1111-111111111105',
-				doctorName: 'Dr. Vikram Singh',
-				doctorSpecialty: 'General Physician',
-				appointmentDate: '2026-11-07',
-				appointmentTime: '02:00 PM',
-				slotId: 'slot-11111111-1111-1111-1111-111111111105-2026-11-07-3',
-				reason: 'High fever and weakness for 3 days, requested typhoid screening',
-				status: 'pending',
-				bookingSource: 'direct',
-				referralQrCode: null,
-				consultationFee: 400,
-				commissionRate: 0,
-				commissionAmount: 0.0,
-				paymentStatus: 'pay_at_clinic',
-				createdAt: '2026-11-06T10:00:00.000Z'
-			},
-			{
-				id: 'APT-982104',
-				patientName: 'Anita Saxena',
-				patientPhone: '+91 97555 88990',
-				patientEmail: 'anita.saxena@example.com',
-				doctorId: '11111111-1111-1111-1111-111111111103',
-				doctorName: 'Dr. Amit Verma',
-				doctorSpecialty: 'Orthopedics',
-				appointmentDate: '2026-11-08',
-				appointmentTime: '09:00 AM',
-				slotId: 'slot-11111111-1111-1111-1111-111111111103-2026-11-08-0',
-				reason: 'Severe knee pain and difficulty climbing stairs',
-				status: 'confirmed',
-				bookingSource: 'doctor_qr',
-				referralQrCode: 'DOC-QR-AMIT-103',
-				consultationFee: 700,
-				commissionRate: 18.0,
-				commissionAmount: 126.0,
-				paymentStatus: 'paid',
-				createdAt: '2026-11-05T14:20:00.000Z'
-			},
-			{
-				id: 'APT-982105',
-				patientName: 'Deepak Chouhan',
-				patientPhone: '+91 98930 44556',
-				patientEmail: 'deepak.c@example.com',
-				doctorId: '11111111-1111-1111-1111-111111111101',
-				doctorName: 'Dr. Rajesh Sharma',
-				doctorSpecialty: 'Cardiology',
-				appointmentDate: '2026-11-05',
-				appointmentTime: '03:00 PM',
-				slotId: 'slot-11111111-1111-1111-1111-111111111101-2026-11-05-4',
-				reason: 'Annual ECG review and cholesterol prescription follow-up',
-				status: 'completed',
-				bookingSource: 'doctor_qr',
-				referralQrCode: 'DOC-QR-RAJESH-101',
-				consultationFee: 800,
-				commissionRate: 15.0,
-				commissionAmount: 120.0,
-				paymentStatus: 'paid',
-				createdAt: '2026-11-04T11:00:00.000Z'
-			},
-			{
-				id: 'APT-982106',
-				patientName: 'Ritu Malviya',
-				patientPhone: '+91 91112 33445',
-				patientEmail: 'ritu.m@example.com',
-				doctorId: '11111111-1111-1111-1111-111111111104',
-				doctorName: 'Dr. Sneha Gupta',
-				doctorSpecialty: 'Pediatrics',
-				appointmentDate: '2026-11-06',
-				appointmentTime: '10:00 AM',
-				slotId: 'slot-11111111-1111-1111-1111-111111111104-2026-11-06-1',
-				reason: 'Child vaccination (MMR booster) and growth assessment',
-				status: 'completed',
-				bookingSource: 'direct',
-				referralQrCode: null,
-				consultationFee: 500,
-				commissionRate: 0,
-				commissionAmount: 0.0,
-				paymentStatus: 'paid',
-				createdAt: '2026-11-05T16:45:00.000Z'
-			},
-			{
-				id: 'APT-982107',
-				patientName: 'Vikramaditya Solanki',
-				patientPhone: '+91 96300 77889',
-				patientEmail: 'v.solanki@example.com',
-				doctorId: '11111111-1111-1111-1111-111111111106',
-				doctorName: 'Dr. Kavita Nair',
-				doctorSpecialty: 'Neurology',
-				appointmentDate: '2026-11-08',
-				appointmentTime: '11:00 AM',
-				slotId: 'slot-11111111-1111-1111-1111-111111111106-2026-11-08-2',
-				reason: 'Chronic migraine episodes triggered by sunlight and lack of sleep',
-				status: 'pending',
-				bookingSource: 'doctor_qr',
-				referralQrCode: 'DOC-QR-KAVITA-106',
-				consultationFee: 900,
-				commissionRate: 20.0,
-				commissionAmount: 180.0,
-				paymentStatus: 'pay_at_clinic',
-				createdAt: '2026-11-06T11:10:00.000Z'
-			},
-			{
-				id: 'APT-982108',
-				patientName: 'Meena Rathore',
-				patientPhone: '+91 99260 11223',
-				patientEmail: 'meena.r@example.com',
-				doctorId: '11111111-1111-1111-1111-111111111105',
-				doctorName: 'Dr. Vikram Singh',
-				doctorSpecialty: 'General Physician',
-				appointmentDate: '2026-11-07',
-				appointmentTime: '04:00 PM',
-				slotId: 'slot-11111111-1111-1111-1111-111111111105-2026-11-07-5',
-				reason: 'Blood sugar checkup and dietary guidance for prediabetes',
-				status: 'confirmed',
-				bookingSource: 'direct',
-				referralQrCode: null,
-				consultationFee: 400,
-				commissionRate: 0,
-				commissionAmount: 0.0,
-				paymentStatus: 'paid',
-				createdAt: '2026-11-06T07:45:00.000Z'
-			}
-		];
+		this.appointments = [];
 	}
 
 	// ── Doctor QR & Commission Methods ─────────────────────────────────────────
@@ -317,13 +191,31 @@ class AdminStore {
 		const doc = this.doctors.get(doctorId);
 		if (!doc) throw new Error('Doctor not found');
 
-		const nameSlug = doc.name.replace(/dr\.?\s+/i, '').replace(/[^a-zA-Z]/g, '').slice(0, 6).toUpperCase();
-		const randomNum = Math.floor(100 + Math.random() * 900);
-		const newCode = customCode?.trim().toUpperCase() || `DOC-QR-${nameSlug}-${randomNum}`;
+		let newCode: string;
+		if (customCode?.trim()) {
+			newCode = customCode.trim().toUpperCase();
+		} else {
+			const nameSlug = doc.name.replace(/dr\.?\s+/i, '').replace(/[^a-zA-Z]/g, '').slice(0, 6).toUpperCase();
+			// Use 6-digit random for lower collision probability (matching addDoctor)
+			let candidate: string;
+			do {
+				candidate = `DOC-QR-${nameSlug}-${Math.floor(100000 + Math.random() * 900000)}`;
+			} while (this.isQrCodeTaken(candidate, doctorId));
+			newCode = candidate;
+		}
 
 		doc.qrCode = newCode;
 		this.doctors.set(doctorId, doc);
 		return newCode;
+	}
+
+	/** Check whether a QR code string is already assigned to another doctor */
+	private isQrCodeTaken(code: string, excludeDoctorId?: string): boolean {
+		const upper = code.toUpperCase();
+		for (const doc of this.doctors.values()) {
+			if (doc.id !== excludeDoctorId && doc.qrCode.toUpperCase() === upper) return true;
+		}
+		return false;
 	}
 
 	public updateDoctorCommission(doctorId: string, commissionRate: number) {
@@ -410,7 +302,76 @@ class AdminStore {
 		return this.appointments.find((a) => a.id === id);
 	}
 
+	public isSlotBooked(slotId: string): boolean {
+		return this.bookedSlotIds.has(slotId);
+	}
+
+	public markSlotBooked(slotId: string): void {
+		if (slotId) this.bookedSlotIds.add(slotId);
+	}
+
+	public calculateAppointmentPricing(baseFee: number, isReturningMember: boolean): AppointmentPricing {
+		const originalFee = Math.round(baseFee * 100) / 100;
+		const discountPercent = isReturningMember ? REPEAT_BOOKING_DISCOUNT_PERCENT : 0;
+		const discountAmount = isReturningMember
+			? Math.round(((originalFee * discountPercent) / 100) * 100) / 100
+			: 0;
+		const finalFee = Math.max(0, Math.round((originalFee - discountAmount) * 100) / 100);
+		return { originalFee, discountPercent, discountAmount, finalFee };
+	}
+
+	public getAppointmentsForUser(identity: {
+		userId?: string | null;
+		email?: string | null;
+		phone?: string | null;
+	}): AppointmentRecord[] {
+		const targetEmail = identity.email?.trim().toLowerCase() || '';
+		const targetPhone = normalizePhone(identity.phone);
+
+		return this.appointments
+			.filter((a) => {
+				if (identity.userId && a.userId === identity.userId) return true;
+				if (targetEmail && a.patientEmail?.trim().toLowerCase() === targetEmail) return true;
+				if (targetPhone && normalizePhone(a.patientPhone) === targetPhone) return true;
+				return false;
+			})
+			.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+	}
+
+	public hasPreviousBooking(identity: {
+		userId?: string | null;
+		email?: string | null;
+		phone?: string | null;
+	}): boolean {
+		return this.getAppointmentsForUser(identity).some((a) => a.status !== 'cancelled');
+	}
+
+	public linkGuestAppointmentsToUser(params: {
+		userId: string;
+		email?: string | null;
+		phone?: string | null;
+		appointmentId?: string | null;
+	}): number {
+		const targetEmail = params.email?.trim().toLowerCase() || '';
+		const targetPhone = normalizePhone(params.phone);
+		let linked = 0;
+
+		for (const appt of this.appointments) {
+			if (appt.userId) continue;
+			const matchesId = Boolean(params.appointmentId && appt.id === params.appointmentId);
+			const matchesEmail = Boolean(targetEmail && appt.patientEmail?.trim().toLowerCase() === targetEmail);
+			const matchesPhone = Boolean(targetPhone && normalizePhone(appt.patientPhone) === targetPhone);
+			if (matchesId || matchesEmail || matchesPhone) {
+				appt.userId = params.userId;
+				linked++;
+			}
+		}
+
+		return linked;
+	}
+
 	public createAppointment(data: {
+		userId?: string | null;
 		patientName: string;
 		patientPhone: string;
 		patientEmail?: string;
@@ -420,12 +381,17 @@ class AdminStore {
 		appointmentTime?: string;
 		reason: string;
 		referralCode?: string | null;
+		originalFee?: number;
+		discountPercent?: number;
+		discountAmount?: number;
+		consultationFee?: number;
 		paymentStatus?: 'paid' | 'pending' | 'pay_at_clinic';
 		paymentMethod?: string;
 		paymentId?: string;
 	}): AppointmentRecord {
 		const doc = this.doctors.get(data.doctorId) || MOCK_DOCTORS.find((d) => d.id === data.doctorId);
-		const fee = parseFloat(doc?.consultationFee || '500');
+		const baseFee = parseFloat(doc?.consultationFee || '500');
+		const fee = data.consultationFee ?? baseFee;
 
 		// Check if referred by doctor QR code
 		let isQr = false;
@@ -442,14 +408,19 @@ class AdminStore {
 			}
 		}
 
-		const commRate = isQr ? (matchingDoc?.commissionRate ?? 15.0) : 0;
+		const commRate =
+			isQr && matchingDoc && 'commissionRate' in matchingDoc ? matchingDoc.commissionRate : isQr ? 15.0 : 0;
 		const commAmount = isQr ? (fee * commRate) / 100 : 0;
 
-		const appointmentId = `APT-${Date.now().toString().slice(-6)}`;
+		let appointmentId = `APT-${Date.now().toString().slice(-6)}`;
+		if (this.appointments.some((a) => a.id === appointmentId)) {
+			appointmentId = `${appointmentId}-${Math.floor(10 + Math.random() * 90)}`;
+		}
 		const isPaid = data.paymentStatus === 'paid';
 
 		const newAppointment: AppointmentRecord = {
 			id: appointmentId,
+			userId: data.userId ?? null,
 			patientName: data.patientName,
 			patientPhone: data.patientPhone,
 			patientEmail: data.patientEmail,
@@ -463,6 +434,9 @@ class AdminStore {
 			status: isPaid ? 'confirmed' : 'pending',
 			bookingSource: isQr ? 'doctor_qr' : 'direct',
 			referralQrCode: isQr ? matchedQrCode : null,
+			originalFee: data.originalFee ?? baseFee,
+			discountPercent: data.discountPercent ?? 0,
+			discountAmount: data.discountAmount ?? 0,
 			consultationFee: fee,
 			commissionRate: commRate,
 			commissionAmount: commAmount,
@@ -472,6 +446,7 @@ class AdminStore {
 			createdAt: new Date().toISOString()
 		};
 
+		this.markSlotBooked(data.slotId);
 		this.appointments.unshift(newAppointment);
 		return newAppointment;
 	}
@@ -483,6 +458,119 @@ class AdminStore {
 		const appt = this.appointments.find((a) => a.id === id);
 		if (!appt) return false;
 		appt.status = status;
+		return true;
+	}
+
+	// ── Diagnostic Test Booking Methods ───────────────────────────────────────
+
+	public createTestBooking(data: {
+		id?: string;
+		userId?: string | null;
+		patientName: string;
+		patientPhone: string;
+		patientEmail?: string;
+		patientAge: number;
+		patientGender: string;
+		address: string;
+		collectionDate: string;
+		collectionSlot: string;
+		totalAmount: number;
+		paymentStatus?: 'paid' | 'pending';
+		paymentMethod?: string;
+		paymentId?: string;
+		tests: Array<{ id: string; name: string; price: string; category: string }>;
+	}): TestBookingRecord {
+		let bookingId = data.id || `TST-${Date.now().toString().slice(-6)}`;
+		if (this.testBookings.some((b) => b.id === bookingId)) {
+			bookingId = `${bookingId}-${Math.floor(10 + Math.random() * 90)}`;
+		}
+		const isPaid = data.paymentStatus === 'paid';
+
+		const record: TestBookingRecord = {
+			id: bookingId,
+			userId: data.userId ?? null,
+			patientName: data.patientName,
+			patientPhone: data.patientPhone,
+			patientEmail: data.patientEmail,
+			patientAge: data.patientAge,
+			patientGender: data.patientGender,
+			address: data.address,
+			collectionDate: data.collectionDate,
+			collectionSlot: data.collectionSlot,
+			status: isPaid ? 'confirmed' : 'pending',
+			totalAmount: data.totalAmount,
+			paymentStatus: isPaid ? 'paid' : 'pending',
+			paymentMethod: data.paymentMethod || (isPaid ? 'Demo Online Payment' : 'Pay on Sample Collection'),
+			paymentId: data.paymentId,
+			items: data.tests.map((t) => ({ testId: t.id, test: t })),
+			createdAt: new Date().toISOString()
+		};
+
+		this.testBookings.unshift(record);
+		return record;
+	}
+
+	public getTestBookingById(id: string): TestBookingRecord | undefined {
+		return this.testBookings.find((b) => b.id === id);
+	}
+
+	public getAllTestBookings(): TestBookingRecord[] {
+		return [...this.testBookings].sort(
+			(a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+		);
+	}
+
+	public getTestBookingsForUser(identity: {
+		userId?: string | null;
+		email?: string | null;
+		phone?: string | null;
+	}): TestBookingRecord[] {
+		const targetEmail = identity.email?.trim().toLowerCase() || '';
+		const targetPhone = normalizePhone(identity.phone);
+
+		return this.testBookings
+			.filter((b) => {
+				if (identity.userId && b.userId === identity.userId) return true;
+				if (targetEmail && b.patientEmail?.trim().toLowerCase() === targetEmail) return true;
+				if (targetPhone && normalizePhone(b.patientPhone) === targetPhone) return true;
+				return false;
+			})
+			.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+	}
+
+	public linkGuestTestBookingsToUser(params: {
+		userId: string;
+		email?: string | null;
+		phone?: string | null;
+		bookingId?: string | null;
+	}): number {
+		const targetEmail = params.email?.trim().toLowerCase() || '';
+		const targetPhone = normalizePhone(params.phone);
+		let linked = 0;
+
+		for (const booking of this.testBookings) {
+			if (booking.userId) continue;
+			const matchesId = Boolean(params.bookingId && booking.id === params.bookingId);
+			const matchesEmail = Boolean(
+				targetEmail && booking.patientEmail?.trim().toLowerCase() === targetEmail
+			);
+			const matchesPhone = Boolean(targetPhone && normalizePhone(booking.patientPhone) === targetPhone);
+			if (matchesId || matchesEmail || matchesPhone) {
+				booking.userId = params.userId;
+				linked++;
+			}
+		}
+
+		return linked;
+	}
+
+	public updateTestBookingStatus(
+		id: string,
+		status: TestBookingRecord['status']
+	): boolean {
+		const booking = this.testBookings.find((b) => b.id === id);
+		if (!booking) return false;
+		booking.status = status;
 		return true;
 	}
 
@@ -505,21 +593,28 @@ class AdminStore {
 			return a.status !== 'cancelled' ? sum + a.consultationFee : sum;
 		}, 0);
 
+		const qrSharePercentage = total > 0 ? Math.round((qrAppts.length / total) * 100) : 0;
+		const directSharePercentage = total > 0 ? 100 - qrSharePercentage : 0;
+
 		return {
 			totalAppointments: total,
 			qrAppointmentsCount: qrAppts.length,
 			directAppointmentsCount: directAppts.length,
-			qrSharePercentage: total > 0 ? Math.round((qrAppts.length / total) * 100) : 0,
+			qrSharePercentage,
+			directSharePercentage,
 			totalCommissionEarned: totalCommission,
 			totalConsultationRevenue: totalRevenue,
 			pendingAppointmentsCount: pendingAppts.length,
 			confirmedAppointmentsCount: confirmedAppts.length,
 			completedAppointmentsCount: completedAppts.length,
-			totalDoctors: this.doctors.size
+			totalDoctors: this.doctors.size,
+			totalTestBookings: this.testBookings.length
 		};
 	}
 }
 
-// Global singleton instance across app lifetime
-export const adminStore = new AdminStore();
+const ADMIN_STORE_KEY = Symbol.for('bloodline.adminStore.clean');
+const globalObj = globalThis as Record<symbol, AdminStore | undefined>;
+export const adminStore: AdminStore =
+	globalObj[ADMIN_STORE_KEY] ?? (globalObj[ADMIN_STORE_KEY] = new AdminStore());
 

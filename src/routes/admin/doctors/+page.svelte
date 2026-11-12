@@ -487,7 +487,7 @@
 
 		<div class="pt-2 flex justify-end gap-2 border-t border-slate-100">
 			<Button variant="outline" size="sm" onclick={() => (addModalOpen = false)}>Cancel</Button>
-			<Button variant="primary" size="sm">Register & Generate QR</Button>
+			<Button variant="primary" size="sm" type="submit">Register & Generate QR</Button>
 		</div>
 	</form>
 </Modal>

@@ -78,7 +78,12 @@ export const actions: Actions = {
 
 		const doctorId = crypto.randomUUID();
 		const nameSlug = name.replace(/dr\.?\s+/i, '').replace(/[^a-zA-Z]/g, '').slice(0, 6).toUpperCase();
-		const qrCode = `DOC-QR-${nameSlug}-${Math.floor(100000 + Math.random() * 900000)}`;
+		// Generate a unique 6-digit QR code, checking against existing doctors
+		let qrCode: string;
+		const existingCodes = new Set(adminStore.getAllDoctors().map((d) => d.qrCode.toUpperCase()));
+		do {
+			qrCode = `DOC-QR-${nameSlug}-${Math.floor(100000 + Math.random() * 900000)}`;
+		} while (existingCodes.has(qrCode.toUpperCase()));
 
 		// Add to adminStore (in-memory)
 		adminStore.getAllDoctors(); // ensure initialized

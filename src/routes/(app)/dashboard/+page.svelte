@@ -12,7 +12,8 @@
 		ArrowRight,
 		Stethoscope,
 		BookOpen,
-		LayoutDashboard
+		LayoutDashboard,
+		Tag
 	} from 'lucide-svelte';
 	import Button from '$components/Button.svelte';
 	import Card from '$components/Card.svelte';
@@ -24,6 +25,12 @@
 	let { data } = $props();
 
 	let activeTab = $state<'tests' | 'appointments' | 'reference'>('tests');
+
+	$effect(() => {
+		if (data.initialTab) {
+			activeTab = data.initialTab;
+		}
+	});
 
 	// KaTeX formula string for blood test evaluation note
 	const formulaHbA1c = katex.renderToString(
@@ -86,6 +93,28 @@
 			{/if}
 		</div>
 	</div>
+
+	<!-- Repeat-Booking Discount Banner -->
+	{#if data.memberStatus?.isReturningMember}
+		<div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+			<div class="flex items-start gap-3">
+				<div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+					<Tag class="w-4 h-4" />
+				</div>
+				<div>
+					<p class="text-sm font-bold text-emerald-900">
+						{data.memberStatus.discountPercent}% Repeat-Booking Member Discount Unlocked!
+					</p>
+					<p class="text-xs text-emerald-800 mt-0.5">
+						Because you have {data.memberStatus.previousBookingsCount} recorded booking{data.memberStatus.previousBookingsCount > 1 ? 's' : ''}, your next doctor appointment automatically receives {data.memberStatus.discountPercent}% off at checkout.
+					</p>
+				</div>
+			</div>
+			<Button variant="primary" size="sm" href="/book-appointment">
+				Book With {data.memberStatus.discountPercent}% Off
+			</Button>
+		</div>
+	{/if}
 
 	<!-- Quick KPI Cards -->
 	<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -283,8 +312,21 @@
 								</div>
 								<div class="flex justify-between">
 									<span class="text-slate-400">Consultation Fee:</span>
-									<span class="font-bold text-slate-900">₹{appt.doctor?.consultationFee ?? '500'}</span>
+									<span class="font-bold text-slate-900">
+										₹{appt.consultationFee ?? appt.doctor?.consultationFee ?? '500'}
+										{#if (appt.discountPercent ?? 0) > 0}
+											<span class="text-[10px] font-semibold text-emerald-700 ml-1">({appt.discountPercent}% off)</span>
+										{/if}
+									</span>
 								</div>
+								{#if appt.paymentStatus}
+									<div class="flex justify-between">
+										<span class="text-slate-400">Payment:</span>
+										<span class="font-semibold {appt.paymentStatus === 'paid' ? 'text-emerald-700' : 'text-amber-700'}">
+											{appt.paymentStatus === 'paid' ? 'Paid' : 'Pay at Clinic'}
+										</span>
+									</div>
+								{/if}
 							</div>
 
 							<p class="text-xs text-slate-500 italic">

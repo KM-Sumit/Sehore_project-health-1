@@ -74,20 +74,23 @@
 
 		<div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
 			<a
-				href="/book-test"
+				href="/book-appointment"
 				class="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl font-bold text-white bg-red-600 hover:bg-red-700 shadow-xs transition-colors text-sm sm:text-base cursor-pointer"
 			>
-				<FlaskConical class="w-5 h-5" />
-				Book Blood Test
+				<Stethoscope class="w-5 h-5" />
+				Book Doctor Appointment
 			</a>
 			<a
-				href="/book-appointment"
+				href="/book-test?category=Blood"
 				class="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl font-semibold text-slate-800 bg-slate-100 hover:bg-slate-200 transition-colors text-sm sm:text-base border border-slate-300"
 			>
-				<Stethoscope class="w-5 h-5 text-red-600" />
-				Consult Doctor
+				<FlaskConical class="w-5 h-5 text-red-600" />
+				Book Blood Test
 			</a>
 		</div>
+		<p class="mt-3 text-xs text-slate-500">
+			No account required to book &amp; pay — create an optional account anytime to view booking history &amp; unlock <span class="font-semibold text-emerald-700">15% off</span> on your 2nd appointment.
+		</p>
 	</div>
 </section>
 
