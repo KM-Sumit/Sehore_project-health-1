@@ -2,7 +2,7 @@ import { redirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { db } from '$lib/server/db';
 import { appointments, testBookings } from '$lib/server/db/schema';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, sql } from 'drizzle-orm';
 import { adminStore } from '$lib/server/adminStore';
 import { getUserBookingStatus } from '$lib/server/appointments';
 
@@ -103,6 +103,20 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		...storeTestBookings.filter((b) => !seenTestIds.has(b.id))
 	];
 
+	// Total orders across all time (the list above is capped at 10 for the dashboard preview)
+	let testBookingTotal = mergedTestBookings.length;
+	try {
+		const [row] = await db
+			.select({ count: sql<number>`count(*)::int` })
+			.from(testBookings)
+			.where(eq(testBookings.userId, locals.user.id));
+		if (row) {
+			testBookingTotal = Math.max(row.count ?? 0, mergedTestBookings.length);
+		}
+	} catch {
+		// keep the fallback count from the loaded list
+	}
+
 	const memberStatus = await getUserBookingStatus(locals.user);
 	const requestedTab = url.searchParams.get('tab');
 	const initialTab =
@@ -116,6 +130,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		user: locals.user,
 		appointments: mergedAppointments,
 		testBookings: mergedTestBookings,
+		testBookingTotal,
 		memberStatus,
 		initialTab
 	};

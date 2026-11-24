@@ -13,7 +13,8 @@
 		Stethoscope,
 		BookOpen,
 		LayoutDashboard,
-		Tag
+		Tag,
+		History
 	} from 'lucide-svelte';
 	import Button from '$components/Button.svelte';
 	import Card from '$components/Card.svelte';
@@ -125,7 +126,7 @@
 					<FlaskConical class="w-4 h-4" />
 				</div>
 			</div>
-			<p class="text-2xl font-bold text-slate-900 mt-2">{data.testBookings.length}</p>
+			<p class="text-2xl font-bold text-slate-900 mt-2">{data.testBookingTotal}</p>
 			<p class="text-[11px] text-slate-400 mt-1">Sample pickups & tests</p>
 		</div>
 
@@ -154,6 +155,28 @@
 		</div>
 	</div>
 
+	<!-- Full Test Order History Card -->
+	<div class="bg-gradient-to-r from-red-50 via-white to-white border border-red-100 rounded-2xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+		<div class="flex items-start gap-4">
+			<div class="w-11 h-11 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+				<History class="w-5 h-5" />
+			</div>
+			<div>
+				<h2 class="text-base font-bold text-slate-900">My Test Order History</h2>
+				<p class="text-xs sm:text-sm text-slate-500 mt-0.5">
+					{data.testBookingTotal === 1
+						? '1 test order booked so far.'
+						: `${data.testBookingTotal} test orders booked so far.`}
+					See every blood test & sample collection with live status and reports.
+				</p>
+			</div>
+		</div>
+		<Button variant="primary" size="md" href="/dashboard/test-history" class="shrink-0">
+			View Full History
+			<ArrowRight class="w-4 h-4" />
+		</Button>
+	</div>
+
 	<!-- Navigation Tabs -->
 	<div class="border-b border-slate-200 flex gap-6 text-sm font-medium">
 		<button
@@ -164,7 +187,7 @@
 				: 'border-transparent text-slate-500 hover:text-slate-800'}"
 		>
 			<FlaskConical class="w-4 h-4" />
-			Blood & Diagnostic Tests ({data.testBookings.length})
+			Blood & Diagnostic Tests ({data.testBookingTotal})
 		</button>
 
 		<button
