@@ -65,11 +65,20 @@ export const actions: Actions = {
 			});
 		}
 
-		await createSession(
-			{ id: user.id, name: user.name, email: user.email, role: user.role },
-			{ request, url: eventUrl(request) },
-			cookies
-		);
+		try {
+			await createSession(
+				{ id: user.id, name: user.name, email: user.email, role: user.role },
+				{ request, url: eventUrl(request) },
+				cookies
+			);
+		} catch (err) {
+			console.error('Login failed: could not create session', err);
+			return fail(503, {
+				email,
+				error:
+					'Login service is temporarily unavailable because the database is not reachable. Please try again in a moment.'
+			});
+		}
 
 		throw redirect(303, safeRedirectTarget(url.searchParams.get('redirectTo')));
 	}

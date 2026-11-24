@@ -232,6 +232,24 @@ export const reportsRelations = relations(reports, ({ one }) => ({
 	test: one(tests, { fields: [reports.testId], references: [tests.id] })
 }));
 
+// ── Express Bookings (Quick guest bookings from navbar) ──────────────────────
+
+export const expressBookings = pgTable('express_bookings', {
+	id: uuid('id').primaryKey().defaultRandom(),
+	reference: text('reference').notNull().unique(),
+	name: text('name'),
+	phone: text('phone').notNull(),
+	gender: text('gender'),
+	age: integer('age'),
+	serviceType: text('service_type').notNull().default('lab_test'), // 'lab_test' | 'doctor_consultation' | 'general'
+	serviceName: text('service_name'),
+	preferredDate: date('preferred_date'),
+	preferredSlot: text('preferred_slot'),
+	notes: text('notes'),
+	status: text('status').notNull().default('pending'),
+	createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+});
+
 // ── Sessions ──────────────────────────────────────────────────────────────────
 
 export const sessions = pgTable('sessions', {

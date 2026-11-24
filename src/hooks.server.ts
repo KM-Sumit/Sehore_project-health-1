@@ -5,8 +5,26 @@ import { getSessionFromRequest } from '$lib/server/auth/sessions';
 const PROTECTED_PREFIXES = ['/dashboard', '/profile', '/admin'];
 const ADMIN_PREFIXES = ['/admin'];
 
+/**
+ * Authenticated pages must never be served from the browser cache, otherwise the
+ * back button can reveal an admin/patient page after logout.
+ */
+function withNoStore(response: Response): Response {
+	response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+	response.headers.set('Pragma', 'no-cache');
+	response.headers.set('Expires', '0');
+	return response;
+}
+
 export const handle: Handle = async ({ event, resolve }) => {
-	const session = await getSessionFromRequest(event);
+	let session: Awaited<ReturnType<typeof getSessionFromRequest>> = null;
+
+	try {
+		session = await getSessionFromRequest(event);
+	} catch (err) {
+		// Do not crash the whole site if the database is temporarily unavailable.
+		console.error('Session lookup failed (database unavailable?):', err);
+	}
 
 	event.locals.user = session
 		? {
@@ -28,7 +46,7 @@ export const handle: Handle = async ({ event, resolve }) => {
 		if (!event.locals.user || event.locals.user.role !== 'admin') {
 			throw redirect(303, `/admin/login?redirectTo=${encodeURIComponent(pathname)}`);
 		}
-		return resolve(event);
+		return withNoStore(await resolve(event));
 	}
 
 	// Require patient authentication for personal dashboard & profile routes
@@ -37,5 +55,11 @@ export const handle: Handle = async ({ event, resolve }) => {
 		throw redirect(303, `/login?redirectTo=${encodeURIComponent(pathname)}`);
 	}
 
-	return resolve(event);
+	const response = await resolve(event);
+
+	if (isProtected && event.locals.user) {
+		return withNoStore(response);
+	}
+
+	return response;
 };

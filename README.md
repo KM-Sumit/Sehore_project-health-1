@@ -106,6 +106,22 @@ All schema validations, PDF generation/inspection (`unpdf`), and AI QA tests exe
 bun run build
 ```
 
+### 5. Database Migrations
+
+This project uses versioned Drizzle migrations. `db:push` is disabled so schema
+changes are always captured in reviewable SQL.
+
+```bash
+bun run db:generate   # generate a new SQL migration from schema.ts
+bun run db:migrate    # apply pending migrations
+bun run db:check      # validate the migration journal and snapshots
+```
+
+The initial baseline in `drizzle/0000_baseline.sql` is already registered as
+applied on the Neon `production` branch. Never re-run it or manually re-create
+existing tables. `drizzle.config.ts` loads `.env.local` first (Neon) and falls
+back to `.env` (local Postgres).
+
 ---
 
 ## 👤 Quick Demo Accounts
