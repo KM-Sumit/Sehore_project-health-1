@@ -57,5 +57,10 @@ export const variables = defineEnvVars({
 
 	// AI providers (optional — falls back to clinical rules)
 	GEMINI_API_KEY: { schema: (value) => value },
-	OPENROUTER_API_KEY: { schema: (value) => value }
+	OPENROUTER_API_KEY: { schema: (value) => value },
+
+	// Admin portal staff credentials (required in production; local dev has defaults)
+	ADMIN_STAFF_ID: { schema: (value) => value },
+	ADMIN_STAFF_SECRET: { schema: (value) => value },
+	ADMIN_EMAIL: { schema: (value) => value }
 });

@@ -32,6 +32,13 @@ export const actions: Actions = {
 			});
 		}
 
+		if (!getAdminCredentials()) {
+			return fail(503, {
+				adminId,
+				error: 'Admin login is not configured on this deployment. Set ADMIN_STAFF_ID and ADMIN_STAFF_SECRET in Vercel.'
+			});
+		}
+
 		const adminUser = await authFallbackStore.verifyAdminStaffCredentials(adminId, password);
 		if (!adminUser) {
 			return fail(401, {

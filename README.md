@@ -131,7 +131,10 @@ You can use the one-click demo login buttons on the `/login` page or use:
 | Role | Email | Password |
 |---|---|---|
 | **Patient** | `patient@bloodlinepathology.in` | `password123` |
-| **Admin** | `admin@bloodlinepathology.in` | `password123` |
+
+**Admin portal** (`/admin/login`) does **not** use these accounts. It reads `ADMIN_STAFF_ID` / `ADMIN_STAFF_SECRET` from the environment (Vercel env vars, or `.env.local` in dev). In production, if those are unset, admin login is disabled.
+
+> ⚠️ The demo DB accounts above must not be left enabled in production. Rotate or remove `admin@bloodlinepathology.in` (and the seeded `patient@bloodlinepathology.in` account) before going live.
 
 ---
 

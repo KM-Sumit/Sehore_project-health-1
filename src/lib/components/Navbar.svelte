@@ -148,10 +148,6 @@
 			</a>
 			<span class="text-slate-600">|</span>
 			<span class="text-slate-400">Timings: 7:00 AM – 9:00 PM</span>
-			<span class="text-slate-600">|</span>
-			<a href="/admin" class="hover:text-white text-slate-300 font-semibold transition-colors">
-				Admin Panel
-			</a>
 		</div>
 	</div>
 </div>
