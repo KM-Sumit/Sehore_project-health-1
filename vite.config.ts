@@ -189,10 +189,7 @@ export default defineConfig(async () => ({
 						out: 'build',
 						precompress: false,
 						environment: 'node'
-					}),
-			alias: {
-				$lib: 'src/lib'
-			}
+					})
 		})
 	],
 	server: {
