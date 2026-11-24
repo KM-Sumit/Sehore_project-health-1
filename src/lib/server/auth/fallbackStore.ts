@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { env } from '$env/dynamic/private';
 import { hashPassword } from './index';
 
 export interface FallbackUser {
@@ -17,8 +18,50 @@ function sha256Equal(a: string, b: string): boolean {
 	return timingSafeEqual(digestA, digestB);
 }
 
-export const ADMIN_STAFF_ID = 'AdminSehore';
-const ADMIN_STAFF_SECRET = 'Admin@123';
+export const ADMIN_USER_ID = '00000000-0000-0000-0000-000000000002';
+const DEMO_PATIENT_ID = '00000000-0000-0000-0000-000000000001';
+const DEFAULT_ADMIN_EMAIL = 'admin@bloodlinepathology.in';
+
+// Local-development convenience only. Production never falls back to these:
+// when ADMIN_STAFF_ID / ADMIN_STAFF_SECRET are missing in production, admin
+// login is disabled instead of exposing a public default password.
+const DEV_ADMIN_ID = 'AdminSehore';
+const DEV_ADMIN_SECRET = 'Admin@123';
+
+function isProductionRuntime(): boolean {
+	return (
+		env.NODE_ENV === 'production' ||
+		process.env.NODE_ENV === 'production' ||
+		process.env.VERCEL === '1'
+	);
+}
+
+export interface AdminCredentials {
+	id: string;
+	secret: string;
+	email: string;
+}
+
+/**
+ * Admin portal credentials come from the deployment environment
+ * (Vercel: ADMIN_STAFF_ID, ADMIN_STAFF_SECRET, ADMIN_EMAIL).
+ * Returns null when they are not configured in production.
+ */
+export function getAdminCredentials(): AdminCredentials | null {
+	const id = (env.ADMIN_STAFF_ID ?? '').trim();
+	const secret = (env.ADMIN_STAFF_SECRET ?? '').trim();
+	const email = ((env.ADMIN_EMAIL ?? '').trim() || DEFAULT_ADMIN_EMAIL).toLowerCase();
+
+	if (id && secret) {
+		return { id, secret, email };
+	}
+
+	if (isProductionRuntime()) {
+		return null;
+	}
+
+	return { id: DEV_ADMIN_ID, secret: DEV_ADMIN_SECRET, email };
+}
 
 class AuthFallbackStore {
 	private usersById = new Map<string, FallbackUser>();
@@ -31,28 +74,34 @@ class AuthFallbackStore {
 		if (this.seeded) return;
 		this.seeded = true;
 
-		const defaultHash = await hashPassword('password123');
-		const adminHash = await hashPassword(ADMIN_STAFF_SECRET);
-		const seeds: FallbackUser[] = [
-			{
-				id: '00000000-0000-0000-0000-000000000001',
+		const seeds: FallbackUser[] = [];
+
+		// Demo patient exists only outside production so a known password can
+		// never be used against a live deployment.
+		if (!isProductionRuntime()) {
+			seeds.push({
+				id: DEMO_PATIENT_ID,
 				name: 'Demo Patient',
 				email: 'patient@bloodlinepathology.in',
 				phone: '9876543210',
-				passwordHash: defaultHash,
+				passwordHash: await hashPassword('password123'),
 				role: 'user',
 				createdAt: new Date()
-			},
-			{
-				id: '00000000-0000-0000-0000-000000000002',
+			});
+		}
+
+		const admin = getAdminCredentials();
+		if (admin) {
+			seeds.push({
+				id: ADMIN_USER_ID,
 				name: 'Admin Sehore',
-				email: 'admin@bloodlinepathology.in',
+				email: admin.email,
 				phone: '9876543211',
-				passwordHash: adminHash,
+				passwordHash: await hashPassword(admin.secret),
 				role: 'admin',
 				createdAt: new Date()
-			}
-		];
+			});
+		}
 
 		for (const user of seeds) {
 			this.usersById.set(user.id, user);
@@ -61,12 +110,15 @@ class AuthFallbackStore {
 	}
 
 	async verifyAdminStaffCredentials(adminId: string, password: string): Promise<FallbackUser | null> {
+		const admin = getAdminCredentials();
+		if (!admin) return null;
+
 		await this.ensureSeeded();
 		const cleanId = adminId.trim();
-		if (!sha256Equal(cleanId, ADMIN_STAFF_ID) || !sha256Equal(password, ADMIN_STAFF_SECRET)) {
+		if (!sha256Equal(cleanId, admin.id) || !sha256Equal(password, admin.secret)) {
 			return null;
 		}
-		return this.usersById.get('00000000-0000-0000-0000-000000000002') ?? null;
+		return this.usersById.get(ADMIN_USER_ID) ?? null;
 	}
 
 	async getUserCount(): Promise<number> {

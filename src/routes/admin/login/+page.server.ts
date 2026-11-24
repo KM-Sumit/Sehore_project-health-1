@@ -1,6 +1,6 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
-import { authFallbackStore } from '$lib/server/auth/fallbackStore';
+import { authFallbackStore, getAdminCredentials } from '$lib/server/auth/fallbackStore';
 import { createSession } from '$lib/server/auth/sessions';
 
 function safeAdminRedirect(raw: string | null): string {
