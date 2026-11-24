@@ -59,7 +59,7 @@ export async function verifyJwt(token: string): Promise<TokenPayload | null> {
 
 // ── Cookie options ────────────────────────────────────────────────────────────
 
-const isProduction = (env.NODE_ENV || process.env.NODE_ENV || 'development') === 'production';
+const isProduction = (env.NODE_ENV || process.env.NODE_ENV) === 'production' || process.env.VERCEL === '1';
 
 export function accessTokenCookieOptions(): { path: string; httpOnly: boolean; sameSite: 'strict'; secure: boolean; maxAge: number } {
 	const ttlMs = parseTtlMs(ACCESS_TTL);

@@ -30,9 +30,19 @@ export const actions: Actions = {
 			});
 		}
 
-		const user = await db.query.users.findFirst({
-			where: eq(users.email, email)
-		});
+		let user;
+		try {
+			user = await db.query.users.findFirst({
+				where: eq(users.email, email)
+			});
+		} catch (err) {
+			console.error('Login failed: database unavailable', err);
+			return fail(503, {
+				email,
+				error:
+					'Login service is temporarily unavailable because the database is not reachable. Please try again in a moment.'
+			});
+		}
 
 		if (!user || !user.passwordHash) {
 			return fail(400, {
@@ -49,11 +59,20 @@ export const actions: Actions = {
 			});
 		}
 
-		await createSession(
-			{ id: user.id, name: user.name, email: user.email, role: user.role },
-			{ request, url: eventUrl(request) },
-			cookies
-		);
+		try {
+			await createSession(
+				{ id: user.id, name: user.name, email: user.email, role: user.role },
+				{ request, url: eventUrl(request) },
+				cookies
+			);
+		} catch (err) {
+			console.error('Login failed: could not create session', err);
+			return fail(503, {
+				email,
+				error:
+					'Login service is temporarily unavailable because the database is not reachable. Please try again in a moment.'
+			});
+		}
 
 		const redirectTo = url.searchParams.get('redirectTo') || '/dashboard';
 		throw redirect(303, redirectTo);

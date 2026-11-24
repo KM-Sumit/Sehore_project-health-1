@@ -4,7 +4,7 @@ import { extractText } from 'unpdf';
 
 describe('PDF Report Generation & Inspection (unpdf)', () => {
 	it('generates a valid clinical lab PDF report containing patient and test details', async () => {
-		const pdfBytes = generatePdfReport({
+		const pdfBytes = await generatePdfReport({
 			bookingId: 'BK-TEST-001',
 			patientName: 'Ramesh Kumar',
 			patientAge: 42,

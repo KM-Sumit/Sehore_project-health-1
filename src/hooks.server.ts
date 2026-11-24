@@ -6,7 +6,14 @@ const PROTECTED_PREFIXES = ['/dashboard', '/profile', '/admin'];
 const ADMIN_PREFIXES = ['/admin'];
 
 export const handle: Handle = async ({ event, resolve }) => {
-	const session = await getSessionFromRequest(event);
+	let session: Awaited<ReturnType<typeof getSessionFromRequest>> = null;
+
+	try {
+		session = await getSessionFromRequest(event);
+	} catch (err) {
+		// Do not crash the whole site if the database is temporarily unavailable.
+		console.error('Session lookup failed (database unavailable?):', err);
+	}
 
 	event.locals.user = session
 		? {
@@ -31,5 +38,14 @@ export const handle: Handle = async ({ event, resolve }) => {
 		throw redirect(303, '/dashboard');
 	}
 
-	return resolve(event);
+	const response = await resolve(event);
+
+	// Add cache-control headers to protected routes so back button doesn't show logged-in page after logout
+	if (isProtected && event.locals.user) {
+		response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+		response.headers.set('Pragma', 'no-cache');
+		response.headers.set('Expires', '0');
+	}
+
+	return response;
 };

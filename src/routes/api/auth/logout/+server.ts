@@ -8,5 +8,13 @@ export const POST: RequestHandler = async ({ cookies, request }) => {
 		await revokeSession(token).catch((err) => console.error('Session revoke error:', err));
 	}
 	clearSessionCookies(cookies);
-	throw redirect(303, '/login');
+
+	// Prevent browser from caching the logged-in admin page after logout
+	throw redirect(303, '/login', {
+		headers: {
+			'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+			'Pragma': 'no-cache',
+			'Expires': '0'
+		}
+	});
 };
