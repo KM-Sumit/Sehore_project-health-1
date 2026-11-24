@@ -8,10 +8,16 @@ const connectionString =
 	process.env.DATABASE_URL ||
 	'postgresql://postgres:password@localhost:5432/Bloodline Pathology';
 
+// Neon's pooled endpoint (PgBouncer, transaction mode) does not support
+// prepared statements. Keep them enabled for direct/local connections.
+const isPooled = connectionString.includes('-pooler');
+
 const client = postgres(connectionString, {
 	max: 10,
 	idle_timeout: 20,
-	connect_timeout: 5,
+	// Neon compute can cold-start; 5s is too tight for the first connection.
+	connect_timeout: 30,
+	prepare: !isPooled,
 	onnotice: () => {}
 });
 

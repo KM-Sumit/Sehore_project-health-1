@@ -11,7 +11,8 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
+    "db:check": "drizzle-kit check",
+    "db:push": "echo \"db:push is disabled. Use npm run db:generate, review the SQL, then npm run db:migrate.\" && exit 1",
     "db:studio": "drizzle-kit studio",
     "test": "bun test",
     "test:e2e": "playwright test"
@@ -19,6 +20,8 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1164.0",
     "@aws-sdk/s3-request-presigner": "^3.1164.0",
+    "@neon/config": "^1.14.6",
+    "@neon/env": "^2.1.9",
     "@sveltejs/kit": "^3.1.1",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@tailwindcss/vite": "^4.3.4",
@@ -39,7 +42,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@sveltejs/adapter-node": "^5.2.11",
+    "@sveltejs/adapter-node": "^6.0.5",
     "@types/bun": "^1.4.4",
     "@types/katex": "^0.16.8",
     "drizzle-kit": "^0.31.11",

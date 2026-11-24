@@ -1,8 +1,10 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
+import { eq } from 'drizzle-orm';
+import { createHash, randomBytes } from 'node:crypto';
 import * as schema from './schema';
 
-const DATABASE_URL = process.env.DATABASE_URL;
+const DATABASE_URL = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL;
 if (!DATABASE_URL) {
 	throw new Error('DATABASE_URL environment variable is required');
 }
@@ -324,8 +326,52 @@ async function seed() {
 	const insertedTests = await db.insert(schema.tests).values(testsData).returning();
 	console.log(`✅ Inserted ${insertedTests.length} tests`);
 
+	// ── Seed Demo Accounts ───────────────────────────────────────────────────
+	// Hash matches verifyPassword() in $lib/server/auth (sha256(password + salt)).
+
+	const demoPasswordHash = hashDemoPassword('password123');
+	const demoUsers: { name: string; email: string; phone: string; role: 'user' | 'admin' }[] = [
+		{
+			name: 'Demo Patient',
+			email: 'patient@bloodlinepathology.in',
+			phone: '9876543210',
+			role: 'user'
+		},
+		{
+			name: 'Admin User',
+			email: 'admin@bloodlinepathology.in',
+			phone: '9876543211',
+			role: 'admin'
+		}
+	];
+
+	for (const demo of demoUsers) {
+		const existing = await db.query.users.findFirst({
+			where: eq(schema.users.email, demo.email)
+		});
+		if (existing) {
+			console.log(`ℹ️  Demo account already exists: ${demo.email}`);
+			continue;
+		}
+
+		await db.insert(schema.users).values({
+			name: demo.name,
+			email: demo.email,
+			phone: demo.phone,
+			role: demo.role,
+			passwordHash: demoPasswordHash
+		});
+		console.log(`✅ Created demo ${demo.role} account: ${demo.email}`);
+	}
+
 	console.log('\n🎉 Seeding complete!');
 	process.exit(0);
+}
+
+function hashDemoPassword(password: string): string {
+	const salt = randomBytes(16);
+	const hash = createHash('sha256').update(password).update(salt).digest('hex');
+	return `pbkdf2:${salt.toString('hex')}:${hash}`;
 }
 
 seed().catch((err) => {
