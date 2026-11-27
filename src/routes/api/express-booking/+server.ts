@@ -60,6 +60,6 @@ export const POST: RequestHandler = async ({ request }) => {
 	return json({
 		success: true,
 		reference,
-		message: 'Your express booking is confirmed. Our care team will call you shortly.'
+		message: 'Your booking is confirmed. Our care team will call you shortly.'
 	});
 };

@@ -40,7 +40,7 @@
 			phone: '',
 			gender: '',
 			age: '',
-			serviceType: 'lab_test',
+			serviceType: 'xray',
 			serviceName: '',
 			preferredDate: todayIso(),
 			preferredSlot: '8AM-10AM',
@@ -186,7 +186,7 @@
 							class="mx-1 inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-white rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-xs transition-colors cursor-pointer"
 						>
 							<Zap class="h-3.5 w-3.5 fill-current" />
-							Express Booking
+							X-ray Booking
 						</button>
 					{/if}
 				{/each}
@@ -303,7 +303,7 @@
 							class="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-semibold text-white rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 cursor-pointer"
 						>
 							<Zap class="h-4 w-4 fill-current" />
-							Express Booking
+							X-ray Booking
 						</button>
 					{/if}
 				{/each}
@@ -368,8 +368,8 @@
 	{/if}
 </nav>
 
-<!-- Express Booking Modal -->
-<Modal bind:open={expressOpen} onclose={closeExpress} title="Express Booking" size="md">
+<!-- X-ray Booking Modal -->
+<Modal bind:open={expressOpen} onclose={closeExpress} title="X-ray Booking" size="md">
 	{#if expressSuccess}
 		<div class="text-center py-3">
 			<div
@@ -377,7 +377,7 @@
 			>
 				<CheckCircle2 class="h-8 w-8" />
 			</div>
-			<h3 class="mt-4 text-lg font-bold text-slate-900">Express Booking Confirmed!</h3>
+			<h3 class="mt-4 text-lg font-bold text-slate-900">X-ray Booking Confirmed!</h3>
 			<p class="mt-1 text-xs leading-relaxed text-slate-500">{expressSuccess.message}</p>
 			<div
 				class="mt-4 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2"
@@ -404,7 +404,7 @@
 	{:else}
 		<form onsubmit={submitExpress} class="space-y-3.5">
 			<p class="-mt-1 text-xs leading-relaxed text-slate-500">
-				Quick booking for home sample collection, X-ray/radiology, or a doctor consultation. Our
+				Quick booking for X-ray/radiology, home sample collection, or a doctor consultation. Our
 				care team will call you to confirm the details.
 			</p>
 
