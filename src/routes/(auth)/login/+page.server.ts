@@ -80,7 +80,13 @@ export const actions: Actions = {
 			});
 		}
 
-		throw redirect(303, safeRedirectTarget(url.searchParams.get('redirectTo')));
+		// Admins belong in the admin console unless an explicit target was given.
+		const redirectTo = url.searchParams.get('redirectTo');
+		if (!redirectTo && user.role === 'admin') {
+			throw redirect(303, '/admin');
+		}
+
+		throw redirect(303, safeRedirectTarget(redirectTo));
 	}
 };
 

@@ -131,7 +131,12 @@
 	}
 </script>
 
-<svelte:window onclick={() => (profileOpen = false)} />
+<svelte:window
+	onclick={(event: MouseEvent) => {
+		const target = event.target as HTMLElement | null;
+		if (!target?.closest('[data-profile-menu]')) profileOpen = false;
+	}}
+/>
 
 <!-- Top Information Ribbon -->
 <div class="bg-slate-900 text-slate-300 text-xs py-2 px-4 border-b border-slate-800">
@@ -183,9 +188,9 @@
 						<button
 							type="button"
 							onclick={openExpress}
-							class="mx-1 inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-semibold text-white rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 shadow-xs transition-colors cursor-pointer"
+							class="mx-1 inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium text-slate-700 hover:text-red-600 rounded-lg hover:bg-red-50/50 transition-colors cursor-pointer"
 						>
-							<Zap class="h-3.5 w-3.5 fill-current" />
+							<Zap class="h-3.5 w-3.5 text-red-500" />
 							X-ray Booking
 						</button>
 					{/if}
@@ -196,7 +201,7 @@
 			<div class="hidden md:flex items-center gap-3">
 				{#if user}
 					<!-- User Dropdown -->
-					<div class="relative">
+					<div class="relative" data-profile-menu>
 						<button
 							onclick={(e: MouseEvent) => {
 								e.stopPropagation();
@@ -237,7 +242,7 @@
 									</a>
 								</div>
 								<div class="py-1">
-									<form method="POST" action="/api/auth/logout">
+									<form method="POST" action="/api/auth/logout?redirectTo=/login">
 										<button
 											type="submit"
 											class="flex w-full items-center gap-2 px-4 py-2 text-xs font-medium text-red-600 hover:bg-red-50 cursor-pointer"
@@ -300,9 +305,9 @@
 								mobileOpen = false;
 								openExpress();
 							}}
-							class="w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-semibold text-white rounded-lg bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 cursor-pointer"
+							class="w-full flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-700 hover:text-red-600 rounded-lg hover:bg-red-50/50 cursor-pointer"
 						>
-							<Zap class="h-4 w-4 fill-current" />
+							<Zap class="h-4 w-4 text-red-500" />
 							X-ray Booking
 						</button>
 					{/if}
@@ -336,7 +341,7 @@
 						>
 							Profile
 						</a>
-						<form method="POST" action="/api/auth/logout">
+						<form method="POST" action="/api/auth/logout?redirectTo=/login">
 							<button
 								type="submit"
 								class="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg cursor-pointer"

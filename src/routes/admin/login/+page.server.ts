@@ -15,7 +15,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		throw redirect(303, safeAdminRedirect(url.searchParams.get('redirectTo')));
 	}
 	return {
-		redirectTo: safeAdminRedirect(url.searchParams.get('redirectTo'))
+		redirectTo: safeAdminRedirect(url.searchParams.get('redirectTo')),
+		configured: Boolean(getAdminCredentials()),
+		currentUser: locals.user
+			? { email: locals.user.email, role: locals.user.role }
+			: null
 	};
 };
 

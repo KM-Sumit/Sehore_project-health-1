@@ -114,5 +114,12 @@
 				Create an account
 			</a>
 		</div>
+
+		<div class="mt-3 border-t border-slate-100 pt-3 text-center text-[11px] text-slate-400">
+			Hospital staff?{' '}
+			<a href="/admin/login" class="font-semibold text-slate-600 hover:text-red-600">
+				Admin / Staff Login
+			</a>
+		</div>
 	</div>
 </div>

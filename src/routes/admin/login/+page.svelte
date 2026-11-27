@@ -2,7 +2,7 @@
 	import { ShieldCheck, Lock, User, ArrowRight, ArrowLeft } from 'lucide-svelte';
 	import Button from '$components/Button.svelte';
 
-	let { form } = $props();
+	let { form, data } = $props();
 
 	let adminId = $state('');
 	let password = $state('');
@@ -37,6 +37,20 @@
 
 	<div class="mt-6 sm:mx-auto sm:w-full sm:max-w-md">
 		<div class="bg-white py-8 px-6 shadow-sm border border-slate-200 rounded-2xl sm:px-9">
+			{#if !data?.configured}
+				<div class="mb-5 rounded-lg bg-amber-50 p-3 text-xs text-amber-800 border border-amber-200">
+					Admin login is not configured on this deployment. Set <code class="font-mono">ADMIN_STAFF_ID</code> and
+					<code class="font-mono">ADMIN_STAFF_SECRET</code> in the hosting environment, then redeploy.
+				</div>
+			{/if}
+
+			{#if data?.currentUser && data.currentUser.role !== 'admin'}
+				<div class="mb-5 rounded-lg bg-slate-50 p-3 text-xs text-slate-600 border border-slate-200">
+					You are currently signed in as <strong>{data.currentUser.email}</strong> (patient).
+					Signing in below replaces that session with an admin session.
+				</div>
+			{/if}
+
 			{#if form?.error}
 				<div class="mb-5 rounded-lg bg-red-50 p-3 text-xs text-red-700 border border-red-200">
 					{form.error}
@@ -95,7 +109,7 @@
 					<ArrowLeft class="w-3.5 h-3.5" />
 					Back to Public Site
 				</a>
-				<span class="text-[11px] text-slate-400">OAuth ready for production</span>
+				<a href="/login" class="hover:text-red-600 font-medium">Patient Login</a>
 			</div>
 		</div>
 	</div>
