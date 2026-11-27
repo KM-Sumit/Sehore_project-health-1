@@ -404,8 +404,8 @@
 	{:else}
 		<form onsubmit={submitExpress} class="space-y-3.5">
 			<p class="-mt-1 text-xs leading-relaxed text-slate-500">
-				Quick booking for home sample collection or a doctor consultation. Our care team will
-				call you to confirm the details.
+				Quick booking for home sample collection, X-ray/radiology, or a doctor consultation. Our
+				care team will call you to confirm the details.
 			</p>
 
 			{#if expressError}
@@ -484,6 +484,7 @@
 						class={fieldClass}
 					>
 						<option value="lab_test">Lab Test (Home Sample)</option>
+						<option value="xray">X-ray / Radiology</option>
 						<option value="doctor_consultation">Doctor Consultation</option>
 						<option value="general">General Inquiry</option>
 					</select>
@@ -497,7 +498,7 @@
 						name="serviceName"
 						type="text"
 						bind:value={expressForm.serviceName}
-						placeholder="e.g. CBC, Thyroid Profile"
+						placeholder="e.g. CBC, Chest X-ray"
 						class={fieldClass}
 					/>
 				</div>

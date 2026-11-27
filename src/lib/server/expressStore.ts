@@ -1,4 +1,4 @@
-export type ExpressServiceType = 'lab_test' | 'doctor_consultation' | 'general';
+export type ExpressServiceType = 'lab_test' | 'xray' | 'doctor_consultation' | 'general';
 
 export interface ExpressBookingRecord {
 	id: string;

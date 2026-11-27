@@ -241,7 +241,7 @@ export const expressBookings = pgTable('express_bookings', {
 	phone: text('phone').notNull(),
 	gender: text('gender'),
 	age: integer('age'),
-	serviceType: text('service_type').notNull().default('lab_test'), // 'lab_test' | 'doctor_consultation' | 'general'
+	serviceType: text('service_type').notNull().default('lab_test'), // 'lab_test' | 'xray' | 'doctor_consultation' | 'general'
 	serviceName: text('service_name'),
 	preferredDate: date('preferred_date'),
 	preferredSlot: text('preferred_slot'),

@@ -62,7 +62,12 @@ export type TestBookingInput = z.infer<typeof testBookingSchema>;
 // ── Express Booking Schema (quick guest booking from navbar) ─────────────────
 
 export const EXPRESS_SLOTS = ['8AM-10AM', '10AM-12PM', '12PM-2PM', '2PM-4PM'] as const;
-export const EXPRESS_SERVICE_TYPES = ['lab_test', 'doctor_consultation', 'general'] as const;
+export const EXPRESS_SERVICE_TYPES = [
+	'lab_test',
+	'xray',
+	'doctor_consultation',
+	'general'
+] as const;
 
 const emptyToUndefined = (value: unknown) =>
 	value === '' || value === null || value === undefined ? undefined : value;

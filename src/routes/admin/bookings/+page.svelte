@@ -17,6 +17,7 @@
 
 	function serviceLabel(type: string): string {
 		if (type === 'doctor_consultation') return 'Doctor Consultation';
+		if (type === 'xray') return 'X-ray / Radiology';
 		if (type === 'general') return 'General Inquiry';
 		return 'Lab Test (Home Sample)';
 	}
