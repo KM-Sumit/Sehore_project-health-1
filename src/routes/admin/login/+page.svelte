@@ -46,7 +46,7 @@
 			<form method="POST" class="space-y-4" onsubmit={() => (loading = true)}>
 				<div>
 					<label for="adminId" class="block text-xs font-semibold text-slate-700 mb-1">
-						Admin ID
+						Admin ID or Email
 					</label>
 					<div class="relative">
 						<User class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -57,7 +57,7 @@
 							required
 							autocomplete="username"
 							bind:value={adminId}
-							placeholder="Enter Admin ID"
+							placeholder="Enter Admin ID or email"
 							class="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
 						/>
 					</div>

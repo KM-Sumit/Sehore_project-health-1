@@ -1,5 +1,8 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { eq } from 'drizzle-orm';
 import { env } from '$env/dynamic/private';
+import { db } from '$lib/server/db';
+import { users } from '$lib/server/db/schema';
 import { hashPassword } from './index';
 
 export interface FallbackUser {
@@ -115,10 +118,56 @@ class AuthFallbackStore {
 
 		await this.ensureSeeded();
 		const cleanId = adminId.trim();
-		if (!sha256Equal(cleanId, admin.id) || !sha256Equal(password, admin.secret)) {
+		// The Admin ID can be either ADMIN_STAFF_ID or ADMIN_EMAIL, so staff can
+		// sign in with whichever they remember. The secret is always required.
+		const idMatches =
+			sha256Equal(cleanId, admin.id) ||
+			sha256Equal(cleanId.toLowerCase(), admin.email.toLowerCase());
+		if (!idMatches || !sha256Equal(password, admin.secret)) {
 			return null;
 		}
+
+		// Prefer a real admin row from the database. Its id makes the session
+		// row insert succeed, so the login survives across serverless instances
+		// (Vercel) instead of relying on per-instance in-memory fallback.
+		const dbAdmin = await this.findDatabaseAdmin(admin.email);
+		if (dbAdmin) return dbAdmin;
+
 		return this.usersById.get(ADMIN_USER_ID) ?? null;
+	}
+
+	private async findDatabaseAdmin(email: string): Promise<FallbackUser | null> {
+		const toFallbackUser = (row: typeof users.$inferSelect): FallbackUser => ({
+			id: row.id,
+			name: row.name,
+			email: row.email,
+			phone: row.phone,
+			passwordHash: row.passwordHash ?? '',
+			role: 'admin',
+			createdAt: row.createdAt
+		});
+
+		try {
+			const [byEmail] = await db
+				.select()
+				.from(users)
+				.where(eq(users.email, email.toLowerCase()))
+				.limit(1);
+			if (byEmail?.role === 'admin') return toFallbackUser(byEmail);
+
+			// Fall back to any existing admin row so the session insert always
+			// satisfies the users(id) foreign key, even when ADMIN_EMAIL points
+			// at a staff mailbox that has no database account.
+			const [anyAdmin] = await db
+				.select()
+				.from(users)
+				.where(eq(users.role, 'admin'))
+				.limit(1);
+			return anyAdmin ? toFallbackUser(anyAdmin) : null;
+		} catch (err) {
+			console.warn('Admin DB lookup failed, using fallback identity:', err);
+			return null;
+		}
 	}
 
 	async getUserCount(): Promise<number> {
